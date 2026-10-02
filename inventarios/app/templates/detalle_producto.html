@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}{{ producto.nombre }} - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="detalle-producto-page">
+    <div class="page-header">
+        <div class="header-content">
+            <a href="/productos" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+            <h1><i class="fas fa-box"></i> {{ producto.nombre }}</h1>
+            <div class="header-actions">
+                <a href="/productos/{{ producto.id }}/editar" class="btn btn-primary">
+                    <i class="fas fa-edit"></i> Editar
+                </a>
+                <a href="/entrada?producto={{ producto.id }}" class="btn btn-success">
+                    <i class="fas fa-arrow-down"></i> Entrada
+                </a>
+                <a href="/salida?producto={{ producto.id }}" class="btn btn-warning">
+                    <i class="fas fa-arrow-up"></i> Salida
+                </a>
+            </div>
+        </div>
+        
+        <div class="producto-codigo">
+            <i class="fas fa-barcode"></i>
+            <span>{{ producto.codigo }}</span>
+        </div>
+    </div>
+    
+    <div class="detalle-grid">
+        <div class="info-card">
+            <h3><i class="fas fa-info-circle"></i> Información General</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label><i class="fas fa-tag"></i> Nombre:</label>
+                    <span>{{ producto.nombre }}</span>
+                </div>
+                <div class="info-item">
+                    <label><i class="fas fa-align-left"></i> Descripción:</label>
+                    <span>{{ producto.descripcion or "Sin descripción" }}</span>
+                </div>
+                <div class="info-item">
+                    <label><i class="fas fa-tags"></i> Categoría:</label>
+                    <span>{{ producto.categoria or "Sin categoría" }}</span>
+                </div>
+                <div class="info-item">
+                    <label><i class="fas fa-map-marker-alt"></i> Ubicación:</label>
+                    <span>{{ producto.ubicacion or "Sin ubicación" }}</span>
+                </div>
+                <div class="info-item">
+                    <label><i class="fas fa-calendar"></i> Fecha Creación:</label>
+                    <span>{{ producto.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stock-card">
+            <h3><i class="fas fa-cubes"></i> Información de Stock</h3>
+            <div class="stock-stats">
+                <div class="stat-item">
+                    <div class="stat-icon {{ 'warning' if producto.stock_actual < producto.stock_minimo else 'success' }}">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h2>{{ producto.stock_actual }}</h2>
+                        <p>Stock Actual</p>
+                    </div>
+                </div>
+                
+                <div class="stat-item">
+                    <div class="stat-icon info">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h2>{{ producto.stock_minimo }}</h2>
+                        <p>Stock Mínimo</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if producto.stock_actual < producto.stock_minimo %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>¡Atención!</strong> El stock está por debajo del mínimo establecido.
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="codigos-card">
+            <h3><i class="fas fa-qrcode"></i> Códigos de Identificación</h3>
+            <div class="codigos-container">
+                <div class="codigo-item">
+                    <h4><i class="fas fa-qrcode"></i> Código QR</h4>
+                    <div class="codigo-image" id="qrCodeContainer">
+                        <img src="/api/productos/{{ producto.id }}/qr-code" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZmFmYyIvPjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2NDc0OGIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5RUiBDb2RlPC90ZXh0Pjwvc3ZnPg=='"
+                             alt="Código QR">
+                    </div>
+                    <button onclick="descargarQR()" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-download"></i> Descargar
+                    </button>
+                </div>
+                
+                <div class="codigo-item">
+                    <h4><i class="fas fa-barcode"></i> Código de Barras</h4>
+                    <div class="codigo-image" id="barcodeContainer">
+                        <img src="/api/productos/{{ producto.id }}/codigo-barras"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2Y4ZmFmYyIvPjx0ZXh0IHg9IjE1MCIgeT0iNTAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY0NzQ4YiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkNvZGlnbyBkZSBCYXJyYXM8L3RleHQ+PC9zdmc+'"
+                             alt="Código de Barras">
+                    </div>
+                    <button onclick="descargarBarcode()" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-download"></i> Descargar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="historial-card">
+            <div class="historial-header">
+                <h3><i class="fas fa-history"></i> Historial de Movimientos</h3>
+                <span class="badge">{{ historial|length }}</span>
+            </div>
+            
+            {% if historial %}
+<div class="historial-list">
+    {% for movimiento in historial %}
+    <div class="movimiento-item">
+        <div class="movimiento-icon {{ 'entrada' if movimiento.tipo == 'entrada' else 'salida' }}">
+            <i class="fas fa-{{ 'arrow-down' if movimiento.tipo == 'entrada' else 'arrow-up' }}"></i>
+        </div>
+        <div class="movimiento-info">
+            <div class="movimiento-header">
+                <span class="movimiento-fecha">{{ movimiento.fecha_movimiento.strftime('%d/%m/%Y %H:%M') }}</span>
+                <span class="movimiento-cantidad {{ movimiento.tipo }}">
+                    {{ '+' if movimiento.tipo == 'entrada' else '-' }}{{ movimiento.cantidad }}
+                </span>
+            </div>
+            <div class="movimiento-detalles">
+                <span class="movimiento-motivo">{{ movimiento.motivo }}</span>
+                {% if movimiento.tipo == 'salida' and movimiento.cliente_destino %}
+                <small class="movimiento-cliente">
+                    <i class="fas fa-user"></i> {{ movimiento.cliente_destino }}
+                </small>
+                {% endif %}
+                {% if movimiento.notas %}
+                <small class="movimiento-notas">{{ movimiento.notas }}</small>
+                {% endif %}
+                
+                <!-- 🆕 MOSTRAR PDF FIRMADO EN EL HISTORIAL -->
+                {% if movimiento.tipo == 'salida' and movimiento.pdf_firmado %}
+                <div class="movimiento-pdf" style="margin-top: 0.5rem;">
+                    <a href="{{ movimiento.pdf_firmado }}" 
+                       target="_blank" 
+                       class="btn-pdf-link"
+                       title="Ver remito firmado">
+                        <i class="fas fa-file-pdf" style="color: #dc2626;"></i>
+                        <span style="color: #dc2626; font-weight: 600;">Remito Firmado</span>
+                        <small style="color: #6b7280;">{{ movimiento.pdf_nombre or 'PDF' }}</small>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<style>
+.detalle-producto-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--info) 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.header-content h1 {
+    margin: 0;
+    flex: 1;
+    text-align: center;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.producto-codigo {
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: monospace;
+    font-size: 1.1rem;
+}
+
+.detalle-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.info-card, .stock-card, .codigos-card, .historial-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.info-card h3, .stock-card h3, .codigos-card h3, .historial-card h3 {
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--dark);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.info-item label {
+    font-weight: 600;
+    color: var(--secondary);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.info-item span {
+    color: var(--dark);
+    word-break: break-word;
+}
+
+.stock-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.5rem;
+    font-size: 1.5rem;
+}
+
+.stat-icon.success { background: #d1fae5; color: #059669; }
+.stat-icon.warning { background: #fef3c7; color: #d97706; }
+.stat-icon.info { background: #dbeafe; color: #1d4ed8; }
+.stat-icon.primary { background: #ede9fe; color: #7c3aed; }
+
+.stat-content h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+}
+
+.stat-content p {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.codigos-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+}
+
+.codigo-item {
+    text-align: center;
+}
+
+.codigo-image {
+    width: 100%;
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--light);
+    border-radius: 0.75rem;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.codigo-image img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.historial-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.historial-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.movimiento-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--gray);
+}
+
+.movimiento-item:last-child {
+    border-bottom: none;
+}
+
+.movimiento-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.movimiento-icon.entrada {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.movimiento-icon.salida {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.movimiento-info {
+    flex: 1;
+}
+
+.movimiento-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.movimiento-fecha {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.movimiento-cantidad {
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+}
+
+.movimiento-cantidad.entrada {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.movimiento-cantidad.salida {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.movimiento-motivo {
+    font-weight: 600;
+    color: var(--dark);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.movimiento-notas {
+    color: var(--secondary);
+    font-size: 0.85rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: var(--secondary);
+}
+
+.empty-state i {
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .header-content h1 {
+        order: -1;
+    }
+    
+    .detalle-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .codigos-container {
+        grid-template-columns: 1fr;
+    }
+}
+/* Estilos para PDF en historial */
+.movimiento-pdf {
+    background: #fef2f2;
+    border: 1px solid #fee2e2;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.btn-pdf-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s;
+}
+
+.btn-pdf-link:hover {
+    background: #fef2f2;
+    border-color: #dc2626;
+}
+
+.btn-pdf-link i {
+    font-size: 1.1rem;
+}
+
+.btn-pdf-link span {
+    font-size: 0.85rem;
+}
+
+.btn-pdf-link small {
+    font-size: 0.7rem;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+</style>
+
+<script>
+function descargarQR() {
+    const img = document.querySelector('#qrCodeContainer img');
+    if (img && img.src) {
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = `qr-{{ producto.codigo }}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+function descargarBarcode() {
+    const img = document.querySelector('#barcodeContainer img');
+    if (img && img.src) {
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = `barcode-{{ producto.codigo }}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+inventarios/
+│
+├── .env                          # Variables de entorno (crear)
+├── requirements.txt              # Dependencias del proyecto
+├── run.py                        # Punto de entrada alternativo
+│
+└── app/
+    ├── __init__.py
+    ├── main.py                   # Configuración principal de FastAPI
+    ├── database.py               # Conexión a MongoDB
+    ├── models.py                 # Modelos Pydantic (obsoleto, migrando a schemas)
+    ├── schemas/                  # NUEVA CARPETA - Modelos Pydantic organizados
+    │   
+    │
+    ├── core/                     Funcionalidades centrales
+    │   ├── __init__.py
+    │   ├── security.py           # JWT, bcrypt, hashing
+    │   └── dependencies.py       # Dependencias FastAPI (auth, roles)
+    │
+    ├── crud.py                   # Operaciones CRUD con MongoDB
+    ├── routers/                  # Endpoints de la API
+    │   ├── __init__.py
+    │   ├── auth.py               # Login, register, me (autenticación)
+    │   ├── productos.py          # CRUD productos
+    │   ├── movimientos.py        # Entradas, salidas, reservas
+    │   └── inventario.py         # Dashboard, reportes
+    │
+    └── utils/                    # Utilidades
+        ├── __init__.py
+        ├── codigos.py            # Generación de códigos de barras y QR
+        └── pdf_generator.py      # Generación de PDFs con ReportLab

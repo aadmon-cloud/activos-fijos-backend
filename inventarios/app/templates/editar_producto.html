@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Editar {{ producto.nombre }} - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="editar-producto-page">
+    <div class="page-header">
+        <h1><i class="fas fa-edit"></i> Editar Producto</h1>
+        <p class="subtitle">{{ producto.nombre }} ({{ producto.codigo }})</p>
+        
+        <div class="header-actions">
+            <a href="/productos/{{ producto.id }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+            <a href="/productos" class="btn btn-primary">
+                <i class="fas fa-box"></i> Ver Todos
+            </a>
+        </div>
+    </div>
+    
+    <div class="editar-form-container">
+        <form id="formEditarProducto" class="editar-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="codigo">
+                        <i class="fas fa-barcode"></i> Código del Producto
+                    </label>
+                    <input type="text" id="codigo" name="codigo" 
+                           value="{{ producto.codigo }}" readonly
+                           class="form-control" style="background: #f8f9fa;">
+                    <small class="help-text">El código no se puede modificar</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="nombre">
+                        <i class="fas fa-tag"></i> Nombre del Producto *
+                    </label>
+                    <input type="text" id="nombre" name="nombre" 
+                           value="{{ producto.nombre }}"
+                           placeholder="Nombre del producto"
+                           required class="form-control">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="descripcion">
+                    <i class="fas fa-align-left"></i> Descripción
+                </label>
+                <textarea id="descripcion" name="descripcion" rows="3"
+                          placeholder="Describe las características del producto..."
+                          class="form-control">{{ producto.descripcion or '' }}</textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="categoria">
+                        <i class="fas fa-tags"></i> Categoría
+                    </label>
+                    <input type="text" id="categoria" name="categoria" 
+                           value="{{ producto.categoria or '' }}"
+                           placeholder="Ej: Electrónica, Ropa, Alimentos..."
+                           class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="ubicacion">
+                        <i class="fas fa-map-marker-alt"></i> Ubicación
+                    </label>
+                    <input type="text" id="ubicacion" name="ubicacion" 
+                           value="{{ producto.ubicacion or '' }}"
+                           placeholder="Ej: Estante A1, Almacén 3"
+                           class="form-control">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="precio_unitario">
+                        <i class="fas fa-dollar-sign"></i> Precio Unitario *
+                    </label>
+                    <div class="input-with-symbol">
+                        <span class="input-symbol">$</span>
+                        <input type="number" id="precio_unitario" name="precio_unitario" 
+                               value="{{ "%.2f"|format(producto.precio_unitario) }}"
+                               step="0.01" min="0" required class="form-control">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stock_minimo">
+                        <i class="fas fa-exclamation-triangle"></i> Stock Mínimo *
+                    </label>
+                    <input type="number" id="stock_minimo" name="stock_minimo" 
+                           value="{{ producto.stock_minimo }}"
+                           min="0" required class="form-control">
+                    <small class="help-text">
+                        El sistema te alertará cuando el stock esté por debajo de este valor.
+                        Stock actual: <strong>{{ producto.stock_actual }}</strong>
+                    </small>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h4><i class="fas fa-chart-bar"></i> Estadísticas</h4>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>{{ producto.stock_actual }}</h3>
+                            <p>Stock Actual</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>${{ "%.2f"|format(producto.stock_actual * producto.precio_unitario) }}</h3>
+                            <p>Valor en Stock</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3>{{ producto.fecha_creacion.strftime('%d/%m/%Y') }}</h3>
+                            <p>Fecha Creación</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" onclick="window.history.back()" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" onclick="eliminarProducto()" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.editar-producto-page {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.editar-form-container {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-top: 2rem;
+}
+
+.editar-form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.stat-card {
+    background: var(--light);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.5rem;
+    font-size: 1.25rem;
+}
+
+.stat-content h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+}
+
+.stat-content p {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray);
+    justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+    .editar-form-container {
+        padding: 1rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script>
+// Enviar formulario de edición
+document.getElementById('formEditarProducto').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        nombre: document.getElementById('nombre').value,
+        descripcion: document.getElementById('descripcion').value || null,
+        categoria: document.getElementById('categoria').value || null,
+        precio_unitario: parseFloat(document.getElementById('precio_unitario').value),
+        stock_minimo: parseInt(document.getElementById('stock_minimo').value),
+        ubicacion: document.getElementById('ubicacion').value || null
+    };
+    
+    try {
+        const response = await fetch(`/api/productos/{{ producto.id }}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert('¡Producto actualizado exitosamente!');
+            window.location.href = `/productos/{{ producto.id }}`;
+        } else {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error actualizando producto');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+
+// Eliminar producto
+async function eliminarProducto() {
+    if (!confirm('¿Estás seguro de eliminar este producto? Esta acción no se puede deshacer.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/productos/{{ producto.id }}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Producto eliminado exitosamente');
+            window.location.href = '/productos';
+        } else {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error eliminando producto');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

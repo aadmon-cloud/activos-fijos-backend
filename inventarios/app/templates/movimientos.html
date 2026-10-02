@@ -1,0 +1,2005 @@
+{% extends "base.html" %}
+
+{% block title %}Movimientos - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<div class="movimientos-page">
+    <div class="page-header">
+        <h1><i class="fas fa-history"></i> Historial de Movimientos</h1>
+        <p class="subtitle">Consulta todos los movimientos de entrada y salida</p>
+        
+        <div class="header-actions">
+            <a href="/entrada" class="btn btn-success">
+                <i class="fas fa-arrow-down"></i> Nueva Entrada
+            </a>
+            <a href="/salida" class="btn btn-warning">
+                <i class="fas fa-arrow-up"></i> Nueva Salida
+            </a>
+            <button onclick="exportarExcel()" class="btn btn-success">
+        <i class="fas fa-file-excel"></i> Exportar 
+            </button>
+        </div>
+    </div>
+    
+    <div class="filters-section">
+        <div class="filters-card">
+            <h3><i class="fas fa-filter"></i> Filtros</h3>
+            
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label for="filterTipo">
+                        <i class="fas fa-exchange-alt"></i> Tipo de Movimiento
+                    </label>
+                    <select id="filterTipo" class="form-select" onchange="filtrarMovimientos()">
+                        <option value="">Todos los tipos</option>
+                        <option value="entrada">Entradas</option>
+                        <option value="salida">Salidas</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterProducto">
+                        <i class="fas fa-box"></i> Producto
+                    </label>
+                    <select id="filterProducto" class="form-select" onchange="filtrarMovimientos()">
+                        <option value="">Todos los productos</option>
+                        <!-- Se cargarán dinámicamente -->
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterFechaDesde">
+                        <i class="fas fa-calendar"></i> Desde
+                    </label>
+                    <input type="date" id="filterFechaDesde" 
+                           class="form-control" onchange="filtrarMovimientos()">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterFechaHasta">
+                        <i class="fas fa-calendar"></i> Hasta
+                    </label>
+                    <input type="date" id="filterFechaHasta" 
+                           class="form-control" onchange="filtrarMovimientos()">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterMotivo">
+                        <i class="fas fa-comment"></i> Motivo
+                    </label>
+                    <select id="filterMotivo" class="form-select" onchange="filtrarMovimientos()">
+                        <option value="">Todos los motivos</option>
+                        <option value="Compra">Compra</option>
+                        <option value="Donación">Donación</option>
+                        <option value="Entrega de Ayudas">Entrega de Ayudas</option>
+                        <option value="Devolución">Devolución</option>
+                        <option value="Ajuste de Inventario">Ajuste de Inventario</option>
+                        <option value="Producción">Producción</option>
+                        <option value="Consumo Interno">Consumo Interno</option>
+                        <option value="Dañado">Dañado</option>
+                        <option value="Caducado">Caducado</option>
+                        <option value="Transferencia">Transferencia</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="filter-actions">
+                <button onclick="resetFilters()" class="btn btn-secondary">
+                    <i class="fas fa-redo"></i> Limpiar Filtros
+                </button>
+                <button onclick="aplicarFiltros()" class="btn btn-primary">
+                    <i class="fas fa-search"></i> Aplicar Filtros
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon entrada">
+                    <i class="fas fa-arrow-down"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="totalEntradas">0</h3>
+                    <p>Entradas Totales</p>
+                    <small id="totalUnidadesEntrada">0 unidades</small>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon salida">
+                    <i class="fas fa-arrow-up"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="totalSalidas">0</h3>
+                    <p>Salidas Totales</p>
+                    <small id="totalUnidadesSalida">0 unidades</small>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon balance">
+                    <i class="fas fa-balance-scale"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="balanceNeto">0</h3>
+                    <p>Balance Neto</p>
+                    <small id="diferenciaUnidades">+0 unidades</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="movimientos-container">
+        <div class="table-card">
+            <div class="table-header">
+                <h3><i class="fas fa-table"></i> Movimientos</h3>
+                <div class="table-info">
+                    Mostrando <span id="movimientosMostrados">0</span> de <span id="movimientosTotales">0</span> movimientos
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="movimientos-table" id="tablaMovimientos">
+                    <thead>
+                        <tr>
+                            <tr>
+                               <th><i class="fas fa-calendar"></i> Fecha</th>
+                               <th><i class="fas fa-box"></i> Producto</th>
+                               <th><i class="fas fa-exchange-alt"></i> Tipo</th>
+                               <th><i class="fas fa-cube"></i> Cantidad</th>
+                               <th><i class="fas fa-comment"></i> Motivo</th>
+                               <th><i class="fas fa-user-tag"></i> Proveedor/Cliente</th> <!-- 🆕 Nuevo -->
+                               <th><i class="fas fa-map-marker-alt"></i> Ubicación</th> <!-- 🆕 Nuevo -->
+                               <th><i class="fas fa-sticky-note"></i> Notas</th> <!-- 🆕 Nuevo -->
+                               <th><i class="fas fa-user"></i> Usuario</th>
+                               <th><i class="fas fa-file-pdf"></i> Remito Firmado</th>
+                               <th><i class="fas fa-cog"></i> Acciones</th>
+                            </tr>
+                    </thead>
+                    <tbody id="tablaMovimientosBody">
+                          <!-- Los movimientos se cargarán aquí -->
+                    </tbody>
+                            <td colspan="8" class="text-center">
+                                <div class="loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Cargando movimientos...</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="table-footer">
+                <div class="pagination-info">
+                    Mostrando <span id="paginaActual">1</span> de <span id="totalPaginas">1</span>
+                </div>
+                
+                <div class="pagination-controls">
+                    <button onclick="cambiarPagina(-1)" class="btn-pagination" id="btnAnterior" disabled>
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>
+                    
+                    <div class="pagination-numbers" id="paginationNumbers">
+                        <!-- Números de página se generarán aquí -->
+                    </div>
+                    
+                    <button onclick="cambiarPagina(1)" class="btn-pagination" id="btnSiguiente" disabled>
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <div class="items-per-page">
+                    <label for="itemsPorPagina">Mostrar:</label>
+                    <select id="itemsPorPagina" onchange="cambiarItemsPorPagina()" class="form-select-sm">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="analytics-section">
+        <div class="analytics-grid">
+            <div class="analytics-card">
+                <h3><i class="fas fa-chart-line"></i> Movimientos por Día</h3>
+                <div class="chart-container">
+                    <canvas id="chartMovimientosDia"></canvas>
+                </div>
+            </div>
+            
+            <div class="analytics-card">
+                <h3><i class="fas fa-chart-pie"></i> Distribución por Motivo</h3>
+                <div class="chart-container">
+                    <canvas id="chartDistribucionMotivo"></canvas>
+                </div>
+            </div>
+            
+            <div class="analytics-card">
+                <h3><i class="fas fa-chart-bar"></i> Top 10 Productos</h3>
+                <div class="chart-container">
+                    <canvas id="chartTopProductos"></canvas>
+                </div>
+            </div>
+            
+            <div class="analytics-card">
+                <h3><i class="fas fa-calendar-alt"></i> Actividad por Hora</h3>
+                <div class="chart-container">
+                    <canvas id="chartActividadHora"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+<style>
+.movimientos-page {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.filters-section {
+    margin: 2rem 0;
+}
+
+.filters-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.filters-card h3 {
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--dark);
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--dark);
+}
+
+.filter-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray);
+}
+
+/* Stats Section */
+.stats-section {
+    margin: 2rem 0;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.stat-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+}
+
+.stat-icon.entrada {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.stat-icon.salida {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.stat-icon.balance {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.stat-icon.valor {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.stat-content h3 {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+}
+
+.stat-content p {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+}
+
+.stat-content small {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+/* Table Section */
+.movimientos-container {
+    margin: 2rem 0;
+}
+
+.table-card {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 1.5rem;
+    background: var(--light);
+    border-bottom: 1px solid var(--gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.table-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-info {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.movimientos-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.movimientos-table thead {
+    background: var(--light);
+}
+
+.movimientos-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--dark);
+    border-bottom: 2px solid var(--gray);
+    white-space: nowrap;
+}
+
+.movimientos-table th i {
+    margin-right: 0.5rem;
+    color: var(--primary);
+}
+
+.movimientos-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--gray);
+    vertical-align: middle;
+}
+
+.movimientos-table tbody tr {
+    transition: background-color 0.3s ease;
+}
+
+.movimientos-table tbody tr:hover {
+    background: var(--light);
+}
+
+/* Estilos para tipos de movimiento */
+.tipo-entrada {
+    background: #d1fae5;
+    color: #059669;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.tipo-salida {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Cantidades */
+.cantidad-entrada {
+    color: #059669;
+    font-weight: 600;
+}
+
+.cantidad-salida {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* Valor */
+.valor-movimiento {
+    font-weight: 600;
+    color: var(--dark);
+}
+
+/* Acciones */
+.acciones-cell {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-accion {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 1px solid var(--gray);
+    color: var(--secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-accion:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-accion.info:hover {
+    background: var(--info);
+    border-color: var(--info);
+}
+
+.btn-accion.warning:hover {
+    background: var(--warning);
+    border-color: var(--warning);
+}
+
+/* Tabla footer */
+.table-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.pagination-info {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-pagination {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--gray);
+    background: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-pagination:hover:not(:disabled) {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-pagination:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-numbers {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.page-number {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gray);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.page-number:hover {
+    background: var(--gray);
+}
+
+.page-number.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.items-per-page {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-select-sm {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--gray);
+    border-radius: 0.5rem;
+    background: white;
+}
+
+/* Analytics Section */
+.analytics-section {
+    margin: 2rem 0;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.analytics-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.analytics-card h3 {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--dark);
+}
+
+.chart-container {
+    position: relative;
+    height: 250px;
+}
+
+/* Modal */
+.modal-lg {
+    width: 90%;
+    max-width: 800px;
+}
+
+/* Loading states */
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--secondary);
+}
+
+.loading i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--secondary);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .table-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .pagination-controls {
+        justify-content: center;
+    }
+    
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .movimientos-table {
+        font-size: 0.9rem;
+    }
+    
+    .movimientos-table th,
+    .movimientos-table td {
+        padding: 0.5rem;
+    }
+}
+/* Estilos para la tabla con más columnas */
+.tabla-movimientos {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tabla-movimientos th {
+    background: var(--light);
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--dark);
+    border-bottom: 2px solid var(--gray);
+    white-space: nowrap;
+}
+
+.tabla-movimientos th i {
+    margin-right: 0.5rem;
+    color: var(--secondary);
+}
+
+.tabla-movimientos td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--gray);
+    vertical-align: middle;
+}
+
+/* Estilos para los detalles del movimiento */
+.detalles-movimiento {
+    max-width: 600px;
+}
+
+.detalle-header {
+    padding: 1.5rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+    margin-bottom: 1.5rem;
+}
+
+.detalle-header.entrada {
+    background: linear-gradient(135deg, var(--success), #16a34a);
+}
+
+.detalle-header.salida {
+    background: linear-gradient(135deg, var(--warning), #d97706);
+}
+
+.detalle-header h4 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.fecha-detalle {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.detalle-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--gray);
+}
+
+.detalle-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.detalle-section h5 {
+    margin-bottom: 1rem;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.detalle-section p {
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.detalle-section p strong {
+    min-width: 150px;
+    color: var(--secondary);
+}
+
+.notas-detalle {
+    background: var(--light);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--gray);
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.notas-detalle em {
+    color: var(--secondary);
+    font-style: italic;
+}
+/* Estilos para PDF firmado */
+.pdf-firmado-cell {
+    min-width: 180px;
+    vertical-align: middle;
+}
+
+.pdf-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.badge-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.badge-pdf i {
+    font-size: 0.75rem;
+}
+
+.pdf-nombre {
+    color: #6b7280;
+    font-size: 0.75rem;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.btn-pdf-sm {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-pdf-sm.success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-pdf-sm.success:hover {
+    background: #059669;
+}
+
+.btn-pdf-sm.primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-pdf-sm.primary:hover {
+    background: #2563eb;
+}
+
+.btn-pdf-upload {
+    background: #f59e0b;
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-pdf-upload:hover {
+    background: #d97706;
+}
+
+/* Modal de PDF */
+.pdf-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.pdf-modal-content {
+    background: white;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    animation: modalSlideIn 0.3s ease;
+}
+
+.pdf-modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pdf-modal-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pdf-modal-body {
+    padding: 1.5rem;
+    flex: 1;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+.pdf-frame {
+    width: 100%;
+    height: 500px;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+</style>
+
+<script>
+let movimientos = [];
+let movimientosFiltrados = [];
+let productos = [];
+let currentPage = 1;
+let itemsPerPage = 25;
+let totalPages = 1;
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    cargarMovimientos();
+    cargarProductosParaFiltro();
+    configurarFechasPorDefecto();
+    
+    // Inicializar charts
+    inicializarCharts();
+});
+
+// Cargar movimientos
+async function cargarMovimientos() {
+    try {
+        const response = await fetch('/api/movimientos/');
+        movimientos = await response.json();
+        movimientosFiltrados = [...movimientos];
+        
+        actualizarEstadisticas();
+        mostrarMovimientos();
+        actualizarPaginacion();
+        actualizarCharts();
+        
+    } catch (error) {
+        console.error('Error cargando movimientos:', error);
+        mostrarError('Error cargando movimientos');
+    }
+}
+
+// Cargar productos para filtro
+async function cargarProductosParaFiltro() {
+    try {
+        const response = await fetch('/api/productos/');
+        productos = await response.json();
+        
+        const select = document.getElementById('filterProducto');
+        productos.forEach(producto => {
+            const option = document.createElement('option');
+            option.value = producto.id;
+            option.textContent = `${producto.codigo} - ${producto.nombre}`;
+            select.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error cargando productos:', error);
+    }
+}
+
+// Configurar fechas por defecto (últimos 30 días)
+function configurarFechasPorDefecto() {
+    const hoy = new Date();
+    const hace30Dias = new Date();
+    hace30Dias.setDate(hoy.getDate() - 30);
+    
+    document.getElementById('filterFechaDesde').value = hace30Dias.toISOString().split('T')[0];
+    document.getElementById('filterFechaHasta').value = hoy.toISOString().split('T')[0];
+}
+
+// Filtrar movimientos
+function filtrarMovimientos() {
+    const tipo = document.getElementById('filterTipo').value;
+    const productoId = document.getElementById('filterProducto').value;
+    const fechaDesde = document.getElementById('filterFechaDesde').value;
+    const fechaHasta = document.getElementById('filterFechaHasta').value;
+    const motivo = document.getElementById('filterMotivo').value;
+    
+    movimientosFiltrados = movimientos.filter(movimiento => {
+        // Filtro por tipo
+        if (tipo && movimiento.tipo !== tipo) return false;
+        
+        // Filtro por producto
+        if (productoId && movimiento.producto_id.toString() !== productoId) return false;
+        
+        // Filtro por fecha
+        const fechaMovimiento = new Date(movimiento.fecha_movimiento).toISOString().split('T')[0];
+        if (fechaDesde && fechaMovimiento < fechaDesde) return false;
+        if (fechaHasta && fechaMovimiento > fechaHasta) return false;
+        
+        // Filtro por motivo
+        if (motivo && movimiento.motivo !== motivo) return false;
+        
+        return true;
+    });
+    
+    currentPage = 1;
+    actualizarEstadisticas();
+    mostrarMovimientos();
+    actualizarPaginacion();
+    actualizarCharts();
+}
+
+function aplicarFiltros() {
+    filtrarMovimientos();
+}
+
+function resetFilters() {
+    document.getElementById('filterTipo').value = '';
+    document.getElementById('filterProducto').value = '';
+    document.getElementById('filterMotivo').value = '';
+    configurarFechasPorDefecto();
+    filtrarMovimientos();
+}
+
+// Actualizar estadísticas
+function actualizarEstadisticas() {
+    const entradas = movimientosFiltrados.filter(m => m.tipo === 'entrada');
+    const salidas = movimientosFiltrados.filter(m => m.tipo === 'salida');
+    
+    const totalEntradas = entradas.length;
+    const totalSalidas = salidas.length;
+    const totalUnidadesEntrada = entradas.reduce((sum, m) => sum + m.cantidad, 0);
+    const totalUnidadesSalida = salidas.reduce((sum, m) => sum + m.cantidad, 0);
+    const balanceNeto = totalUnidadesEntrada - totalUnidadesSalida;
+        
+    document.getElementById('totalEntradas').textContent = totalEntradas;
+    document.getElementById('totalSalidas').textContent = totalSalidas;
+    document.getElementById('totalUnidadesEntrada').textContent = `${totalUnidadesEntrada} unidades`;
+    document.getElementById('totalUnidadesSalida').textContent = `${totalUnidadesSalida} unidades`;
+    document.getElementById('balanceNeto').textContent = balanceNeto;
+    document.getElementById('diferenciaUnidades').textContent = `${balanceNeto >= 0 ? '+' : ''}${balanceNeto} unidades`;
+
+    
+    // Actualizar colores del balance
+    const balanceElement = document.getElementById('balanceNeto');
+    const diferenciaElement = document.getElementById('diferenciaUnidades');
+    
+    if (balanceNeto > 0) {
+        balanceElement.style.color = '#059669';
+        diferenciaElement.style.color = '#059669';
+    } else if (balanceNeto < 0) {
+        balanceElement.style.color = '#dc2626';
+        diferenciaElement.style.color = '#dc2626';
+    } else {
+        balanceElement.style.color = 'var(--dark)';
+        diferenciaElement.style.color = 'var(--secondary)';
+    }
+}
+function exportarExcel() {
+    // Obtener valores de los filtros REALES (corregir IDs)
+    const fechaInicio = document.getElementById('filterFechaDesde')?.value || '';
+    const fechaFin = document.getElementById('filterFechaHasta')?.value || '';
+    const tipo = document.getElementById('filterTipo')?.value || '';
+    
+    console.log('Filtros para exportar:', { fechaInicio, fechaFin, tipo });
+    
+    // Construir URL correctamente
+    let url = `/api/movimientos/exportar/excel?`;
+    
+    // Usar URLSearchParams para manejar parámetros correctamente
+    const params = new URLSearchParams();
+    
+    if (fechaInicio) {
+        params.append('fecha_inicio', fechaInicio);
+    }
+    
+    if (fechaFin) {
+        params.append('fecha_fin', fechaFin);
+    }
+    
+    if (tipo) {
+        params.append('tipo', tipo);
+    }
+    
+    // Construir URL final
+    const queryString = params.toString();
+    if (queryString) {
+        url += queryString;
+    }
+    
+    console.log('URL de exportación:', url);
+    
+    // Mostrar mensaje de procesamiento
+    mostrarMensajeProcesamiento();
+    
+    // Crear un enlace temporal para la descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.download = 'movimientos.xlsx'; // Nombre sugerido
+    
+    // Simular clic
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // También abrir en nueva pestaña para verificar
+    window.open(url, '_blank');
+}
+
+function mostrarMensajeProcesamiento() {
+    // Crear mensaje temporal
+    const mensaje = document.createElement('div');
+    mensaje.id = 'mensaje-exportacion';
+    mensaje.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 5px;
+        z-index: 10000;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease;
+    `;
+    
+    mensaje.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        Generando archivo Excel...
+    `;
+    
+    document.body.appendChild(mensaje);
+    
+    // Remover después de 3 segundos
+    setTimeout(() => {
+        if (mensaje.parentNode) {
+            mensaje.parentNode.removeChild(mensaje);
+        }
+    }, 3000);
+}
+function mostrarMovimientos() {
+    const tbody = document.getElementById('tablaMovimientosBody');
+    const movimientosMostrados = document.getElementById('movimientosMostrados');
+    const movimientosTotales = document.getElementById('movimientosTotales');
+    
+    movimientosTotales.textContent = movimientosFiltrados.length;
+    
+    if (movimientosFiltrados.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center"> <!-- Cambiado de 8 a 11 columnas -->
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No se encontraron movimientos</p>
+                        <small>Intenta con otros filtros</small>
+                    </div>
+                </td>
+            </tr>
+        `;
+        movimientosMostrados.textContent = '0';
+        return;
+    }
+    
+    // Calcular índices para paginación
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const movimientosPagina = movimientosFiltrados.slice(startIndex, endIndex);
+    
+    movimientosMostrados.textContent = movimientosPagina.length;
+    
+    let html = '';
+    
+    movimientosPagina.forEach(movimiento => {
+        const fecha = new Date(movimiento.fecha_movimiento).toLocaleString();
+        const tipoClass = movimiento.tipo === 'entrada' ? 'tipo-entrada' : 'tipo-salida';
+        const tipoIcon = movimiento.tipo === 'entrada' ? 'arrow-down' : 'arrow-up';
+        const cantidadClass = movimiento.tipo === 'entrada' ? 'cantidad-entrada' : 'cantidad-salida';
+        const cantidadSign = movimiento.tipo === 'entrada' ? '+' : '-';
+        const productoNombre = movimiento.producto ? movimiento.producto.nombre : 'Producto eliminado';
+        const productoCodigo = movimiento.producto ? movimiento.producto.codigo : 'N/A';
+        
+        // 🆕 Determinar origen/destino según el tipo
+        let origenDestino = '';
+        if (movimiento.tipo === 'entrada') {
+            origenDestino = movimiento.origen_nombre || '-';
+        } else {
+            origenDestino = movimiento.cliente_destino || '-';
+        }
+        
+        html += `
+            <tr>
+                <td>
+                    <div class="fecha-completa">${fecha}</div>
+                    <small class="text-muted">${new Date(movimiento.fecha_movimiento).toLocaleDateString()}</small>
+                </td>
+                <td>
+                    <div class="fw-semibold">${productoNombre}</div>
+                    <small class="text-muted">${productoCodigo}</small>
+                </td>
+                <td>
+                    <span class="${tipoClass}">
+                        <i class="fas fa-${tipoIcon}"></i>
+                        ${movimiento.tipo === 'entrada' ? 'Entrada' : 'Salida'}
+                    </span>
+                </td>
+                <td class="${cantidadClass}">
+                    ${cantidadSign}${movimiento.cantidad}
+                </td>
+                <td>${movimiento.motivo || '-'}</td>
+                <td>${origenDestino}</td> <!-- 🆕 Proveedor/Cliente -->
+                <td>${movimiento.ubicacion || '-'}</td> <!-- 🆕 Ubicación -->
+                <td>${movimiento.notas || '-'}</td> <!-- 🆕 Notas -->
+                <td>${movimiento.usuario || 'admin'}</td>
+                 <td class="pdf-firmado-cell">
+            ${movimiento.tipo === 'salida' ? `
+                ${movimiento.pdf_firmado ? `
+                    <div class="pdf-info">
+                        <span class="badge-pdf">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </span>
+                        <small class="pdf-nombre">${movimiento.pdf_nombre || 'Remito firmado'}</small>
+                        <div class="pdf-actions">
+                            <button onclick="verPDF('${movimiento.pdf_firmado}')" 
+                                    class="btn-pdf-sm success" 
+                                    title="Ver PDF firmado">
+                                <i class="fas fa-eye"></i> Ver
+                            </button>
+                            <button onclick="descargarPDF('${movimiento.pdf_firmado}')" 
+                                    class="btn-pdf-sm primary" 
+                                    title="Descargar PDF">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                ` : `
+                    <button onclick="subirPDFSalida(${movimiento.id})" 
+                            class="btn-pdf-upload"
+                            title="Subir remito firmado">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        Subir PDF
+                    </button>
+                `}
+            ` : `
+                <span class="text-muted">—</span>
+            `}
+        </td>
+        
+        <!-- CELDA DE ACCIONES -->
+        <td>
+            <div class="acciones-cell">
+                <button class="btn-accion info" onclick="verDetallesMovimiento(${movimiento.id})" title="Ver detalles">
+                    <i class="fas fa-eye"></i>
+                </button>
+                ${movimiento.tipo === 'salida' ? `
+                    <button class="btn-accion warning" onclick="generarComprobanteIndividual(${movimiento.id})" title="Generar comprobante">
+                        <i class="fas fa-print"></i>
+                    </button>
+                ` : ''}
+                <button class="btn-accion" onclick="editarMovimiento(${movimiento.id})" title="Editar" ${movimiento.producto ? '' : 'disabled'}>
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn-accion warning" onclick="revertirMovimiento(${movimiento.id})" title="Revertir" ${movimiento.producto ? '' : 'disabled'}>
+                    <i class="fas fa-undo"></i>
+                </button>
+            </div>
+        </td>
+    </tr>
+`;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+// Actualizar paginación
+function actualizarPaginacion() {
+    totalPages = Math.ceil(movimientosFiltrados.length / itemsPerPage);
+    
+    document.getElementById('paginaActual').textContent = currentPage;
+    document.getElementById('totalPaginas').textContent = totalPages;
+    
+    const btnAnterior = document.getElementById('btnAnterior');
+    const btnSiguiente = document.getElementById('btnSiguiente');
+    const paginationNumbers = document.getElementById('paginationNumbers');
+    
+    btnAnterior.disabled = currentPage === 1;
+    btnSiguiente.disabled = currentPage === totalPages || totalPages === 0;
+    
+    // Generar números de página
+    let html = '';
+    const maxVisiblePages = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // Botón para primera página
+    if (startPage > 1) {
+        html += `<span class="page-number" onclick="irAPagina(1)">1</span>`;
+        if (startPage > 2) {
+            html += `<span class="page-number">...</span>`;
+        }
+    }
+    
+    // Números de página
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<span class="page-number ${i === currentPage ? 'active' : ''}" onclick="irAPagina(${i})">${i}</span>`;
+    }
+    
+    // Botón para última página
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<span class="page-number">...</span>`;
+        }
+        html += `<span class="page-number" onclick="irAPagina(${totalPages})">${totalPages}</span>`;
+    }
+    
+    paginationNumbers.innerHTML = html;
+}
+
+// Navegación de paginación
+function cambiarPagina(delta) {
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        mostrarMovimientos();
+        actualizarPaginacion();
+        // Scroll suave hacia arriba
+        document.querySelector('.movimientos-container').scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function irAPagina(page) {
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        mostrarMovimientos();
+        actualizarPaginacion();
+    }
+}
+
+function cambiarItemsPorPagina() {
+    itemsPerPage = parseInt(document.getElementById('itemsPorPagina').value);
+    currentPage = 1;
+    mostrarMovimientos();
+    actualizarPaginacion();
+}
+
+// Funciones de acciones
+// ===== FUNCIÓN CORREGIDA PARA VER DETALLES =====
+// ===== FUNCIÓN CORREGIDA PARA VER DETALLES =====
+function verDetallesMovimiento(movimientoId) {
+    const movimiento = movimientos.find(m => m.id === movimientoId);
+    if (!movimiento) {
+        alert('Movimiento no encontrado');
+        return;
+    }
+    
+    const modalBody = document.getElementById('modalDetallesBody');
+    const fecha = new Date(movimiento.fecha_movimiento).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    const tipoClass = movimiento.tipo === 'entrada' ? 'tipo-entrada' : 'tipo-salida';
+    const tipoIcon = movimiento.tipo === 'entrada' ? 'arrow-down' : 'arrow-up';
+    const tipoTexto = movimiento.tipo === 'entrada' ? 'ENTRADA' : 'SALIDA';
+    
+    // Datos del producto
+    const productoNombre = movimiento.producto ? movimiento.producto.nombre : 'Producto eliminado';
+    const productoCodigo = movimiento.producto ? movimiento.producto.codigo : 'N/A';
+    const stockActual = movimiento.producto ? movimiento.producto.stock_actual : 'N/A';
+    const stockMinimo = movimiento.producto ? movimiento.producto.stock_minimo : 'N/A';
+    const categoria = movimiento.producto ? movimiento.producto.categoria || 'Sin categoría' : 'N/A';
+    
+    // Determinar origen/destino
+    let origenDestino = '';
+    let origenDestinoLabel = '';
+    if (movimiento.tipo === 'entrada') {
+        origenDestinoLabel = 'Proveedor/Origen';
+        origenDestino = movimiento.origen_nombre || 'No especificado';
+    } else {
+        origenDestinoLabel = 'Cliente/Destino';
+        origenDestino = movimiento.cliente_destino || 'No especificado';
+    }
+    
+    // Información del PDF
+    const tienePDF = movimiento.pdf_firmado ? true : false;
+    const pdfUrl = movimiento.pdf_firmado;
+    const pdfNombre = movimiento.pdf_nombre || 'Remito firmado';
+    
+    modalBody.innerHTML = `
+        <div class="detalle-header ${movimiento.tipo}">
+            <h4>
+                <i class="fas fa-${tipoIcon}"></i>
+                ${tipoTexto} #${movimiento.id}
+            </h4>
+            <span class="fecha-detalle">${fecha}</span>
+        </div>
+        
+        <div class="detalle-section">
+            <h5><i class="fas fa-box"></i> Producto</h5>
+            <p><strong>Nombre:</strong> ${productoNombre}</p>
+            <p><strong>Código:</strong> ${productoCodigo}</p>
+            <p><strong>Categoría:</strong> ${categoria}</p>
+        </div>
+        
+        <div class="detalle-section">
+            <h5><i class="fas fa-exchange-alt"></i> Movimiento</h5>
+            <p><strong>Tipo:</strong> <span class="${tipoClass}">${tipoTexto}</span></p>
+            <p><strong>Cantidad:</strong> 
+                <span class="${movimiento.tipo === 'entrada' ? 'cantidad-entrada' : 'cantidad-salida'}">
+                    ${movimiento.tipo === 'entrada' ? '+' : '-'}${movimiento.cantidad} unidades
+                </span>
+            </p>
+            <p><strong>Motivo:</strong> ${movimiento.motivo || 'No especificado'}</p>
+            <p><strong>${origenDestinoLabel}:</strong> ${origenDestino}</p>
+            ${movimiento.ubicacion ? `<p><strong>Ubicación:</strong> ${movimiento.ubicacion}</p>` : ''}
+            ${movimiento.tipo_origen ? `<p><strong>Tipo de Origen:</strong> ${movimiento.tipo_origen}</p>` : ''}
+        </div>
+        
+        <div class="detalle-section">
+            <h5><i class="fas fa-file-pdf"></i> Remito Firmado</h5>
+            ${tienePDF ? `
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <span class="badge-pdf">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </span>
+                    <span style="color: #6b7280; font-size: 0.9rem;">${pdfNombre}</span>
+                    <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+                        <button onclick="verPDF('${pdfUrl}')" class="btn-pdf-sm success">
+                            <i class="fas fa-eye"></i> Ver
+                        </button>
+                        <button onclick="descargarPDF('${pdfUrl}')" class="btn-pdf-sm primary">
+                            <i class="fas fa-download"></i> Descargar
+                        </button>
+                    </div>
+                </div>
+            ` : `
+                <p style="color: #6b7280; font-style: italic;">
+                    No se ha subido ningún remito firmado para esta salida.
+                </p>
+                ${movimiento.tipo === 'salida' ? `
+                    <button onclick="subirPDFSalida(${movimiento.id})" 
+                            class="btn btn-warning btn-sm"
+                            style="margin-top: 0.5rem;">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        Subir Remito Firmado
+                    </button>
+                ` : ''}
+            `}
+        </div>
+        
+        <div class="detalle-section">
+            <h5><i class="fas fa-sticky-note"></i> Notas y Observaciones</h5>
+            <div class="notas-detalle">
+                ${movimiento.notas ? movimiento.notas : '<em>Sin notas adicionales</em>'}
+            </div>
+        </div>
+        
+        <div class="detalle-section">
+            <h5><i class="fas fa-info-circle"></i> Información Adicional</h5>
+            <p><strong>Usuario que registró:</strong> ${movimiento.usuario || 'admin'}</p>
+            ${movimiento.producto ? `
+                <p><strong>Stock actual del producto:</strong> 
+                    <span style="font-weight: 600; ${stockActual < stockMinimo ? 'color: #dc2626;' : 'color: #059669;'}">
+                        ${stockActual} unidades
+                    </span>
+                </p>
+                <p><strong>Stock mínimo:</strong> ${stockMinimo} unidades</p>
+            ` : ''}
+        </div>
+        
+        <div class="modal-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb;">
+            <button onclick="cerrarModalDetalles()" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cerrar
+            </button>
+            ${movimiento.tipo === 'salida' && !tienePDF ? `
+                <button onclick="subirPDFSalida(${movimiento.id})" class="btn btn-warning">
+                    <i class="fas fa-cloud-upload-alt"></i> Subir Remito
+                </button>
+            ` : ''}
+            ${movimiento.tipo === 'salida' ? `
+                <button onclick="generarComprobanteIndividual(${movimiento.id})" class="btn btn-primary">
+                    <i class="fas fa-print"></i> Comprobante
+                </button>
+            ` : ''}
+        </div>
+    `;
+    
+    // Mostrar modal
+    document.getElementById('modalDetalles').classList.remove('hidden');
+}
+
+function cerrarModalDetalles() {
+    document.getElementById('modalDetalles').classList.add('hidden');
+}
+
+function editarMovimiento(movimientoId) {
+    // Implementar edición de movimiento
+    alert('Funcionalidad de edición en desarrollo');
+}
+
+async function revertirMovimiento(movimientoId) {
+    const movimiento = movimientos.find(m => m.id === movimientoId);
+    if (!movimiento || !movimiento.producto) {
+        alert('No se puede revertir este movimiento');
+        return;
+    }
+    
+    const confirmar = confirm(`¿Revertir ${movimiento.tipo} de ${movimiento.cantidad} unidades de "${movimiento.producto.nombre}"?\n\nEsta acción creará un movimiento contrario.`);
+    
+    if (!confirmar) return;
+    
+    try {
+        const movimientoContrario = {
+            producto_id: movimiento.producto_id,
+            tipo: movimiento.tipo === 'entrada' ? 'salida' : 'entrada',
+            cantidad: movimiento.cantidad,
+            motivo: `Reversión de ${movimiento.tipo} #${movimiento.id}`,
+            notas: `Revertido: ${movimiento.motivo || 'Sin motivo'}`,
+            usuario: 'admin'
+        };
+        
+        const response = await fetch('/api/movimientos/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(movimientoContrario)
+        });
+        
+        if (response.ok) {
+            alert('Movimiento revertido exitosamente');
+            cargarMovimientos(); // Recargar
+            cerrarModalDetalles();
+        } else {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error al revertir movimiento');
+        }
+        
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
+}
+
+// Charts
+// ===== GRÁFICOS CORREGIDOS =====
+let chartMovimientosDia = null;
+let chartDistribucionMotivo = null;
+let chartTopProductos = null;
+let chartActividadHora = null;
+
+function inicializarCharts() {
+    // Verificar que Chart.js está cargado
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js no está cargado');
+        return;
+    }
+    
+    // Inicializar con datos vacíos
+    const ctx1 = document.getElementById('chartMovimientosDia')?.getContext('2d');
+    const ctx2 = document.getElementById('chartDistribucionMotivo')?.getContext('2d');
+    const ctx3 = document.getElementById('chartTopProductos')?.getContext('2d');
+    const ctx4 = document.getElementById('chartActividadHora')?.getContext('2d');
+    
+    if (ctx1) {
+        chartMovimientosDia = new Chart(ctx1, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+    
+    if (ctx2) {
+        chartDistribucionMotivo = new Chart(ctx2, {
+            type: 'doughnut',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+    
+    if (ctx3) {
+        chartTopProductos = new Chart(ctx3, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+    
+    if (ctx4) {
+        chartActividadHora = new Chart(ctx4, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+}
+
+function actualizarCharts() {
+    if (!movimientosFiltrados || movimientosFiltrados.length === 0) {
+        console.log('No hay datos para gráficos');
+        return;
+    }
+    
+    try {
+        // 1. GRÁFICO: Movimientos por día (últimos 7 días)
+        const ultimos7Dias = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            return d.toISOString().split('T')[0];
+        }).reverse();
+        
+        const movimientosPorDia = ultimos7Dias.map(fecha => {
+            return movimientosFiltrados.filter(m => 
+                new Date(m.fecha_movimiento).toISOString().split('T')[0] === fecha
+            ).length;
+        });
+        
+        if (chartMovimientosDia) {
+            chartMovimientosDia.data.labels = ultimos7Dias.map(f => {
+                const [y, m, d] = f.split('-');
+                return `${d}/${m}`;
+            });
+            chartMovimientosDia.data.datasets = [{
+                label: 'Movimientos',
+                data: movimientosPorDia,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                tension: 0.4,
+                fill: true
+            }];
+            chartMovimientosDia.update();
+        }
+        
+        // 2. GRÁFICO: Distribución por motivo (top 5)
+        const motivos = {};
+        movimientosFiltrados.forEach(m => {
+            const motivo = m.motivo || 'Sin motivo';
+            motivos[motivo] = (motivos[motivo] || 0) + 1;
+        });
+        
+        const topMotivos = Object.entries(motivos)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        if (chartDistribucionMotivo && topMotivos.length > 0) {
+            chartDistribucionMotivo.data.labels = topMotivos.map(m => m[0]);
+            chartDistribucionMotivo.data.datasets = [{
+                data: topMotivos.map(m => m[1]),
+                backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                borderWidth: 0
+            }];
+            chartDistribucionMotivo.update();
+        }
+        
+        // 3. GRÁFICO: Top 10 productos
+        const productosCount = {};
+        movimientosFiltrados.forEach(m => {
+            if (m.producto) {
+                const key = m.producto.codigo || `ID: ${m.producto_id}`;
+                productosCount[key] = (productosCount[key] || 0) + m.cantidad;
+            }
+        });
+        
+        const topProductos = Object.entries(productosCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+        
+        if (chartTopProductos && topProductos.length > 0) {
+            chartTopProductos.data.labels = topProductos.map(p => p[0]);
+            chartTopProductos.data.datasets = [{
+                label: 'Unidades',
+                data: topProductos.map(p => p[1]),
+                backgroundColor: '#10b981',
+                borderRadius: 4
+            }];
+            chartTopProductos.update();
+        }
+        
+        // 4. GRÁFICO: Actividad por hora
+        const horas = Array.from({ length: 24 }, (_, i) => i);
+        const actividadPorHora = horas.map(hora => {
+            return movimientosFiltrados.filter(m => {
+                const fecha = new Date(m.fecha_movimiento);
+                return fecha.getHours() === hora;
+            }).length;
+        });
+        
+        if (chartActividadHora) {
+            chartActividadHora.data.labels = horas.map(h => `${h}:00`);
+            chartActividadHora.data.datasets = [{
+                label: 'Movimientos',
+                data: actividadPorHora,
+                backgroundColor: '#f59e0b',
+                borderRadius: 4
+            }];
+            chartActividadHora.update();
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando gráficos:', error);
+    }
+}
+
+// Funciones auxiliares
+function mostrarError(mensaje) {
+    alert('Error: ' + mensaje);
+}
+
+function generarReporte() {
+    // Implementar generación de reporte
+    alert('Generando reporte de movimientos...');
+    
+    // Crear datos para el reporte
+    const reporte = {
+        fechaGeneracion: new Date().toISOString(),
+        totalMovimientos: movimientosFiltrados.length,
+        estadisticas: {
+            entradas: movimientosFiltrados.filter(m => m.tipo === 'entrada').length,
+            salidas: movimientosFiltrados.filter(m => m.tipo === 'salida').length,
+            productosUnicos: new Set(movimientosFiltrados.map(m => m.producto_id)).size
+        },
+        movimientos: movimientosFiltrados.map(m => ({
+            fecha: m.fecha_movimiento,
+            producto: m.producto ? m.producto.nombre : 'N/A',
+            tipo: m.tipo,
+            cantidad: m.cantidad,
+            motivo: m.motivo,
+            usuario: m.usuario
+        }))
+    };
+    
+    // Crear y descargar archivo JSON
+    const dataStr = JSON.stringify(reporte, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `reporte_movimientos_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+}
+
+// Inicializar cuando se carga Chart.js
+if (typeof Chart !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', inicializarCharts);
+} else {
+    console.warn('Chart.js no está cargado. Los gráficos no funcionarán.');
+}
+// ===== FUNCIONES PARA PDF FIRMADO =====
+
+/**
+ * Ver PDF en modal
+ */
+function verPDF(pdfUrl) {
+    if (!pdfUrl) {
+        alert('❌ URL del PDF no disponible');
+        return;
+    }
+    
+    // Asegurar URL completa
+    let url = pdfUrl;
+    if (!pdfUrl.startsWith('http')) {
+        url = pdfUrl.startsWith('/') ? pdfUrl : '/' + pdfUrl;
+    }
+    
+    // Crear modal
+    const modal = document.createElement('div');
+    modal.className = 'pdf-modal';
+    modal.id = 'pdfViewerModal';
+    
+    modal.innerHTML = `
+        <div class="pdf-modal-content">
+            <div class="pdf-modal-header">
+                <h3>
+                    <i class="fas fa-file-pdf" style="color: #dc2626;"></i>
+                    Remito Firmado
+                </h3>
+                <button onclick="cerrarPdfModal()" class="btn-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="pdf-modal-body">
+                <iframe src="${url}" 
+                        class="pdf-frame" 
+                        frameborder="0">
+                </iframe>
+            </div>
+            <div class="pdf-modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; text-align: right;">
+                <a href="${url}" download class="btn btn-primary">
+                    <i class="fas fa-download"></i> Descargar PDF
+                </a>
+                <button onclick="cerrarPdfModal()" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function cerrarPdfModal() {
+    const modal = document.getElementById('pdfViewerModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+/**
+ * Descargar PDF directamente
+ */
+function descargarPDF(pdfUrl) {
+    if (!pdfUrl) {
+        alert('❌ URL del PDF no disponible');
+        return;
+    }
+    
+    let url = pdfUrl;
+    if (!pdfUrl.startsWith('http')) {
+        url = pdfUrl.startsWith('/') ? pdfUrl : '/' + pdfUrl;
+    }
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = url.split('/').pop() || 'remito_firmado.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+/**
+ * Subir PDF firmado (reutilizar la función de salida.html)
+ */
+async function subirPDFSalida(movimientoId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    
+    input.onchange = async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.type !== 'application/pdf') {
+            alert('❌ Solo se permiten archivos PDF');
+            return;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) {
+            alert('❌ El archivo es demasiado grande. Máximo 10MB');
+            return;
+        }
+        
+        if (!confirm(`¿Subir PDF firmado para esta salida?\n\nArchivo: ${file.name}`)) {
+            return;
+        }
+        
+        mostrarProcesandoPDF();
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch(`/api/movimientos/${movimientoId}/subir-pdf`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                alert('✅ PDF subido exitosamente');
+                location.reload(); // Recargar para mostrar el PDF
+            } else {
+                const error = await response.json();
+                throw new Error(error.detail || 'Error al subir PDF');
+            }
+        } catch (error) {
+            alert(`❌ Error: ${error.message}`);
+        } finally {
+            ocultarProcesandoPDF();
+        }
+    };
+    
+    input.click();
+}
+
+function mostrarProcesandoPDF() {
+    const overlay = document.createElement('div');
+    overlay.id = 'pdf-processing-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 10001;
+    `;
+    overlay.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center;">
+            <i class="fas fa-spinner fa-spin fa-2x" style="color: #2563eb;"></i>
+            <p style="margin-top: 15px; font-weight: bold;">Subiendo PDF...</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function ocultarProcesandoPDF() {
+    const overlay = document.getElementById('pdf-processing-overlay');
+    if (overlay) overlay.remove();
+}
+
+async function generarComprobanteIndividual(movimientoId) {
+    try {
+        mostrarProcesandoPDF('Generando comprobante...');
+        
+        const response = await fetch(`/api/movimientos/salida/${movimientoId}/pdf`);
+        
+        if (!response.ok) {
+            throw new Error('Error generando comprobante');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprobante_salida_${movimientoId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        
+        ocultarProcesandoPDF();
+        alert('✅ Comprobante generado exitosamente');
+        
+    } catch (error) {
+        ocultarProcesandoPDF();
+        alert(`❌ Error: ${error.message}`);
+    }
+}
+</script>
+{% endblock %}

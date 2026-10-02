@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Cargar Productos desde Excel{% endblock %}
+
+{% block content %}
+<div class="cargar-excel-page">
+    <div class="page-header">
+        <h1><i class="fas fa-file-excel"></i> Cargar Productos desde Excel</h1>
+        <p class="subtitle">Sube un archivo con todos los productos que quieres crear</p>
+        
+        <div class="header-actions">
+            <a href="/productos" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Productos
+            </a>
+        </div>
+    </div>
+    
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <strong>Formato del archivo:</strong> Excel (.xlsx) o CSV con las siguientes columnas:
+        <ul style="margin-top: 0.5rem; margin-left: 2rem;">
+            <li><strong>nombre</strong> - Nombre del producto (obligatorio)</li>
+            <li><strong>descripcion</strong> - Descripción (opcional)</li>
+            <li><strong>categoria</strong> - Categoría (opcional)</li>
+            <li><strong>stock_minimo</strong> - Stock mínimo (opcional, por defecto 0)</li>
+        </ul>
+    </div>
+    
+    <div class="excel-card">
+        <div class="excel-header">
+            <h3><i class="fas fa-upload"></i> Subir Archivo</h3>
+        </div>
+        
+        <div class="excel-body">
+            <form id="formCargarExcel" enctype="multipart/form-data">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                    <h4>Arrastra tu archivo aquí o haz clic para seleccionar</h4>
+                    <p class="text-muted">Formatos aceptados: .xlsx, .xls, .csv</p>
+                    <input type="file" id="archivoExcel" accept=".xlsx,.xls,.csv" style="display: none;">
+                    <button type="button" onclick="document.getElementById('archivoExcel').click()" class="btn btn-primary">
+                        <i class="fas fa-folder-open"></i> Seleccionar Archivo
+                    </button>
+                </div>
+                
+                <div id="archivoSeleccionado" style="display: none;" class="archivo-info">
+                    <i class="fas fa-check-circle" style="color: #10b981;"></i>
+                    <span id="nombreArchivo"></span>
+                    <button type="button" onclick="limpiarArchivo()" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-times"></i> Quitar
+                    </button>
+                </div>
+                
+                <div class="progress-bar-container" id="progressContainer" style="display: none;">
+                    <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" onclick="cargarArchivo()" class="btn btn-success btn-lg" id="btnCargar" disabled>
+                        <i class="fas fa-play"></i> Iniciar Carga
+                    </button>
+                    <a href="/static/plantilla_productos.xlsx" class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Descargar Plantilla
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="resultados-card" id="resultados" style="display: none;">
+        <h3><i class="fas fa-chart-bar"></i> Resultado de la Carga</h3>
+        
+        <div class="resumen-carga" id="resumenCarga">
+            <!-- Se llena con JS -->
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Código Generado</th>
+                        <th>Nombre</th>
+                        <th>Categoría</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaResultados"></tbody>
+            </table>
+        </div>
+        
+        <div class="form-actions">
+            <button onclick="location.href='/productos'" class="btn btn-primary">
+                <i class="fas fa-box"></i> Ver Productos
+            </button>
+            <button onclick="cargarOtro()" class="btn btn-secondary">
+                <i class="fas fa-redo"></i> Cargar Otro Archivo
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.cargar-excel-page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.excel-card {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin: 2rem 0;
+    overflow: hidden;
+}
+
+.excel-header {
+    padding: 1.5rem;
+    background: var(--light);
+    border-bottom: 1px solid var(--gray);
+}
+
+.excel-body {
+    padding: 2rem;
+}
+
+.upload-area {
+    border: 3px dashed var(--gray);
+    border-radius: 1rem;
+    padding: 3rem;
+    text-align: center;
+    background: var(--light);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    border-color: var(--primary);
+    background: #e8f0fe;
+}
+
+.upload-area i {
+    color: var(--primary);
+    margin-bottom: 1rem;
+}
+
+.archivo-info {
+    background: #d1fae5;
+    border: 2px solid #10b981;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.progress-bar-container {
+    margin: 1.5rem 0;
+    background: var(--light);
+    border-radius: 2rem;
+    overflow: hidden;
+    height: 30px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--info));
+    border-radius: 2rem;
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+}
+
+.resultados-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-top: 2rem;
+}
+
+.resumen-carga {
+    background: var(--light);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.resumen-item {
+    text-align: center;
+}
+
+.resumen-item .numero {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+    display: block;
+}
+
+.resumen-item .label {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #059669;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.badge-danger {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    justify-content: flex-end;
+}
+.error-detalle {
+    font-size: 0.85rem;
+    color: #dc2626;
+    margin-top: 0.25rem;
+}
+
+.validacion-msg {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 0.5rem;
+}
+
+.validacion-msg strong {
+    color: #92400e;
+}
+
+.codigo-duplicado {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+</style>
+
+<script>
+let archivoSeleccionado = null;
+
+document.getElementById('archivoExcel').addEventListener('change', function(e) {
+    archivoSeleccionado = e.target.files[0];
+    if (archivoSeleccionado) {
+        document.getElementById('uploadArea').style.display = 'none';
+        document.getElementById('archivoSeleccionado').style.display = 'flex';
+        document.getElementById('nombreArchivo').textContent = archivoSeleccionado.name;
+        document.getElementById('btnCargar').disabled = false;
+    }
+});
+
+function limpiarArchivo() {
+    archivoSeleccionado = null;
+    document.getElementById('archivoExcel').value = '';
+    document.getElementById('uploadArea').style.display = 'block';
+    document.getElementById('archivoSeleccionado').style.display = 'none';
+    document.getElementById('btnCargar').disabled = true;
+}
+
+async function cargarArchivo() {
+    if (!archivoSeleccionado) return;
+    
+    const formData = new FormData();
+    formData.append('archivo', archivoSeleccionado);
+    
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('btnCargar').disabled = true;
+    
+    try {
+        const response = await fetch('/api/productos/cargar-excel', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarResultados(result);
+        } else {
+            alert('Error: ' + result.detail);
+        }
+    } catch (error) {
+        alert('Error al cargar archivo: ' + error.message);
+    } finally {
+        document.getElementById('progressContainer').style.display = 'none';
+        document.getElementById('btnCargar').disabled = false;
+    }
+}
+
+function mostrarResultados(result) {
+    document.querySelector('.excel-card').style.display = 'none';
+    document.getElementById('resultados').style.display = 'block';
+    
+    // Mostrar resumen
+    const resumen = document.getElementById('resumenCarga');
+    resumen.innerHTML = `
+        <div class="resumen-item">
+            <span class="numero">${result.total}</span>
+            <span class="label">Total Productos</span>
+        </div>
+        <div class="resumen-item">
+            <span class="numero" style="color: #10b981;">${result.exitosos}</span>
+            <span class="label">Creados</span>
+        </div>
+        <div class="resumen-item">
+            <span class="numero" style="color: #dc2626;">${result.fallidos}</span>
+            <span class="label">Fallidos</span>
+        </div>
+    `;
+    
+    // Si hay fallos por códigos duplicados, mostrar advertencia
+    if (result.fallidos > 0) {
+        const tieneCodigosDuplicados = result.productos.some(p => 
+            !p.exitoso && p.error && p.error.includes('código')
+        );
+        
+        if (tieneCodigosDuplicados) {
+            const warning = document.createElement('div');
+            warning.className = 'validacion-msg';
+            warning.innerHTML = `
+                <strong><i class="fas fa-exclamation-triangle"></i> Importante:</strong>
+                <p>Algunos productos no se crearon por problemas con los códigos:</p>
+                <ul>
+                    <li>Códigos vacíos o inválidos</li>
+                    <li>Códigos duplicados en el Excel</li>
+                    <li>Códigos que ya existen en la base de datos</li>
+                </ul>
+                <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    Revisa la tabla para ver los errores específicos.
+                </p>
+            `;
+            resumen.appendChild(warning);
+        }
+    }
+    
+    // Tabla de resultados
+    let html = '';
+    result.productos.forEach(p => {
+        const badgeClass = p.exitoso ? 'badge-success' : 'badge-danger';
+        const badgeText = p.exitoso ? '✅ Creado' : '❌ Error';
+        
+        html += `
+            <tr>
+                <td><code>${p.codigo || '---'}</code></td>
+                <td>${p.nombre}</td>
+                <td>${p.categoria || '-'}</td>
+                <td>
+                    <span class="${badgeClass}">${badgeText}</span>
+                    ${!p.exitoso && p.error ? `
+                        <div class="error-detalle">
+                            <i class="fas fa-info-circle"></i> ${p.error}
+                        </div>
+                    ` : ''}
+                </td>
+            </tr>
+        `;
+    });
+    
+    document.getElementById('tablaResultados').innerHTML = html;
+}
+
+function cargarOtro() {
+    location.reload();
+}
+</script>
+{% endblock %}

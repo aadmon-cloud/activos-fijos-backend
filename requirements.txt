@@ -1,0 +1,20 @@
+fastapi==0.129.0
+motor==3.7.1
+pymongo==4.16.0
+pydantic==2.12.5
+pydantic-settings==2.13.0
+uvicorn==0.40.0
+python-dotenv==1.2.1
+google-cloud-secret-manager==2.26.0
+
+# modulo auth
+python-jose==3.5.0
+bcrypt==5.0.0
+email-validator==2.3.0
+httpx==0.28.1
+
+# modulo movimientos
+pandas==2.2.2
+openpyxl==3.1.5
+reportlab==4.2.2
+python-multipart==0.0.26

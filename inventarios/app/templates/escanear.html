@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}Escanear Códigos - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="scanner-page">
+    <div class="scanner-header">
+        <h1><i class="fas fa-camera"></i> Escáner de Códigos</h1>
+        <p class="subtitle">Usa la cámara de tu celular para escanear códigos QR y de barras</p>
+    </div>
+    
+    <div class="operation-selector">
+        <h3>Selecciona el tipo de operación:</h3>
+        <div class="operation-buttons">
+            <button class="btn btn-operacion" data-operacion="consulta">
+                <i class="fas fa-search"></i> Consultar
+            </button>
+            <button class="btn btn-operacion btn-success" data-operacion="entrada">
+                <i class="fas fa-arrow-down"></i> Entrada
+            </button>
+            <button class="btn btn-operacion btn-warning" data-operacion="salida">
+                <i class="fas fa-arrow-up"></i> Salida
+            </button>
+        </div>
+        
+        <div class="current-operation">
+            <span class="badge badge-info">
+                <i class="fas fa-sync-alt fa-spin"></i>
+                Operación actual: <span id="operacion-actual">Consulta</span>
+            </span>
+        </div>
+    </div>
+    
+    <div class="scanner-container" id="scanner-container">
+        <div class="scanner-wrapper">
+            <div id="reader" style="width: 100%; min-height: 400px;"></div>
+            
+            <div class="scanner-overlay">
+                <div class="scan-area">
+                    <div class="scan-line"></div>
+                </div>
+                <div class="scan-instruction">
+                    <i class="fas fa-barcode"></i>
+                    Enfoca el código dentro del área
+                </div>
+            </div>
+        </div>
+        
+        <div class="scanner-controls" id="scanner-controls" style="display: none;">
+            <button onclick="detenerEscaneoPagina()" class="btn btn-danger">
+                <i class="fas fa-stop"></i> Detener Escaneo
+            </button>
+            <button onclick="escaner.cambiarCamara()" class="btn btn-secondary">
+                <i class="fas fa-sync-alt"></i> Cambiar Cámara
+            </button>
+            <button onclick="mostrarInputManual()" class="btn btn-secondary">
+                <i class="fas fa-keyboard"></i> Ingresar Manual
+            </button>
+        </div>
+    </div>
+    
+    <div class="scanner-help">
+        <h3><i class="fas fa-question-circle"></i> ¿Cómo escanear?</h3>
+        <div class="help-steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h4>Permitir Cámara</h4>
+                    <p>Acepta el permiso de cámara cuando el navegador lo solicite.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h4>Enfocar el Código</h4>
+                    <p>Apunta la cámara al código QR o de barras del producto.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h4>Esperar Detección</h4>
+                    <p>Mantén el código estable hasta que se detecte automáticamente.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h4>Confirmar Operación</h4>
+                    <p>Revisa la información y confirma la operación.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="code-types">
+        <h3><i class="fas fa-info-circle"></i> Tipos de Códigos Soportados</h3>
+        <div class="types-grid">
+            <div class="type-card">
+                <div class="type-icon qr">
+                    <i class="fas fa-qrcode"></i>
+                </div>
+                <h5>Códigos QR</h5>
+                <p>Generados por el sistema o personalizados</p>
+            </div>
+            <div class="type-card">
+                <div class="type-icon barcode">
+                    <i class="fas fa-barcode"></i>
+                </div>
+                <h5>EAN-13 / UPC</h5>
+                <p>Códigos de barras estándar de 12-13 dígitos</p>
+            </div>
+            <div class="type-card">
+                <div class="type-icon code">
+                    <i class="fas fa-hashtag"></i>
+                </div>
+                <h5>Códigos Internos</h5>
+                <p>Formato: PROD-YYYYMMDD-XXXXXX</p>
+            </div>
+            <div class="type-card">
+                <div class="type-icon manual">
+                    <i class="fas fa-keyboard"></i>
+                </div>
+                <h5>Ingreso Manual</h5>
+                <p>También puedes ingresar códigos manualmente</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.scanner-page {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.scanner-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.operation-selector {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.operation-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.current-operation {
+    text-align: center;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.9rem;
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.scanner-container {
+    background: #000;
+    border-radius: 1rem;
+    overflow: hidden;
+    margin-bottom: 2rem;
+    position: relative;
+}
+
+.scanner-wrapper {
+    position: relative;
+    min-height: 400px;
+}
+
+#reader {
+    min-height: 400px;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.scan-area {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 250px;
+    border: 2px dashed rgba(255,255,255,0.5);
+    border-radius: 1rem;
+}
+
+.scan-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        #10b981 50%, 
+        transparent 100%);
+    animation: scan 2s ease-in-out infinite;
+}
+
+@keyframes scan {
+    0% { top: 0; }
+    50% { top: 100%; }
+    100% { top: 0; }
+}
+
+.scan-instruction {
+    position: absolute;
+    bottom: 1rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.scanner-controls {
+    background: rgba(0,0,0,0.8);
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.help-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.step-content h4 {
+    margin-bottom: 0.5rem;
+}
+
+.types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.type-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.type-card:hover {
+    transform: translateY(-5px);
+}
+
+.type-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 1.5rem;
+}
+
+.type-icon.qr {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.type-icon.barcode {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.type-icon.code {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.type-icon.manual {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.type-card h5 {
+    margin-bottom: 0.5rem;
+}
+
+.type-card p {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+/* Modal y notificaciones */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    display: none;
+}
+
+.modal.show {
+    display: block;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--secondary);
+    cursor: pointer;
+}
+
+.qr-image, .barcode-image {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.scan-feedback {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: var(--success);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transform: translateX(150%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+}
+
+.scan-feedback.show {
+    transform: translateX(0);
+}
+
+.notifications {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+}
+
+.alert {
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.alert-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--gray);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+.productos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.producto-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.producto-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.producto-header h4 {
+    margin: 0;
+    flex: 1;
+}
+
+.producto-body p {
+    margin: 0.5rem 0;
+    color: var(--secondary);
+}
+
+.producto-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.text-center {
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .scanner-wrapper {
+        min-height: 300px;
+    }
+    
+    #reader {
+        min-height: 300px;
+    }
+    
+    .scan-area {
+        width: 200px;
+        height: 200px;
+    }
+    
+    .operation-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
+}
+</style>
+
+<script>
+// Función para mostrar input manual
+function mostrarInputManual() {
+    const modal = crearModal(`
+        <h3><i class="fas fa-keyboard"></i> Ingreso Manual de Código</h3>
+        <div class="form-group">
+            <label for="codigo-manual">Código:</label>
+            <input type="text" id="codigo-manual" 
+                   placeholder="Ej: PROD-20240115-ABC123 o 1234567890123"
+                   class="form-control" autofocus>
+        </div>
+        <div class="modal-buttons">
+            <button onclick="procesarCodigoManual()" class="btn btn-primary">
+                <i class="fas fa-search"></i> Buscar
+            </button>
+            <button onclick="cerrarModal()" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    `);
+    
+    mostrarModal(modal);
+    
+    // Enfocar input automáticamente
+    setTimeout(() => {
+        const input = document.getElementById('codigo-manual');
+        if (input) input.focus();
+    }, 100);
+}
+
+// Procesar código ingresado manualmente
+async function procesarCodigoManual() {
+    const input = document.getElementById('codigo-manual');
+    if (!input || !input.value.trim()) {
+        alert('Por favor ingresa un código');
+        return;
+    }
+    
+    const codigo = input.value.trim();
+    const tipoOperacion = document.getElementById('operacion-actual').textContent.toLowerCase();
+    
+    await procesarCodigoEscaneado(codigo, tipoOperacion);
+    cerrarModal();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,2743 @@
+{% extends "base.html" %}
+
+{% block title %}Salida de Productos - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="salida-page">
+    <div class="page-header">
+        <h1><i class="fas fa-arrow-up"></i> Salida de Productos</h1>
+        <p class="subtitle">Registra la salida de productos del inventario</p>
+        
+        <div class="header-actions">
+            <a href="/escanear?mode=salida" class="btn btn-warning">
+                <i class="fas fa-camera"></i> Escanear Salida
+            </a>
+            <a href="/productos" class="btn btn-secondary">
+                <i class="fas fa-box"></i> Ver Productos
+            </a>
+            <button onclick="registrarMultiples()" class="btn btn-primary">
+                <i class="fas fa-save"></i> Guardar Todo
+            </button>
+        </div>
+    </div>
+    
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <strong>Verificación de stock:</strong> El sistema validará que haya suficiente stock antes de registrar cada salida.
+    </div>
+    
+    <div class="salida-container">
+        <div class="salida-form-container">
+            <div class="form-card">
+                <h3><i class="fas fa-minus-circle"></i> Nueva Salida</h3>
+                
+                <div class="form-section">
+                    <h4><i class="fas fa-search"></i> Buscar Producto</h4>
+                    <div class="search-product">
+                        <div class="search-input-group">
+                            <input type="text" id="buscarProducto" 
+                                   placeholder="Ingresa código o nombre del producto..."
+                                   class="form-control" autofocus>
+                            <button onclick="buscarProducto()" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Buscar
+                            </button>
+                        </div>
+                        
+                        <div class="scan-option">
+                            <p>o</p>
+                            <button onclick="iniciarEscaneoSimple()" class="btn btn-warning">
+                                <i class="fas fa-camera"></i> Escanear Producto
+                            </button>
+                            <small class="help-text">Puedes escanear varios productos seguidos</small>
+                        </div>
+                    </div>
+                </div>
+                
+        <!-- PARA MODO NORMAL (producto individual) -->
+    <div id="productoSeleccionado" class="hidden">
+    <!-- Aquí se mostrará el producto seleccionado individualmente -->
+        </div>
+
+<!-- PARA MODO KIT (múltiples productos) -->
+ <div id="productosSeleccionados" class="hidden">
+    <div class="productos-seleccionados-header">
+        <h4><i class="fas fa-boxes"></i> Productos Seleccionados</h4>
+        <span class="badge" id="contadorProductosSeleccionados">0</span>
+    </div>
+    
+    <div class="productos-seleccionados-list" id="listaProductosSeleccionados">
+        <!-- Aquí se mostrarán los productos seleccionados -->
+    </div>
+    
+    <!-- 🆕 CAMBIA style="display: none;" por class="hidden" -->
+    <div class="productos-seleccionados-footer hidden" id="kitOptions">
+        <div class="form-group">
+            <label for="cantidadKits">
+                <i class="fas fa-layer-group"></i> Cantidad de Kits *
+            </label>
+            <input type="number" id="cantidadKits" 
+                   min="1" value="1" class="form-control">
+            <small class="help-text">Cada kit contiene todos los productos listados arriba</small>
+        </div>
+    </div>
+</div>
+           </div>
+                <div class="form-section">
+                    <h4><i class="fas fa-edit"></i> Detalles de la Salida</h4>
+                    
+                    <div class="form-group">
+                        <label for="cantidad">
+                            <i class="fas fa-cube"></i> Cantidad *
+                        </label>
+                        <input type="number" id="cantidad" 
+                               min="1" value="1" class="form-control" required>
+                        <small class="help-text" id="infoStock">
+                            Stock disponible: <span id="stockDisponible">0</span>
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="motivo">
+                            <i class="fas fa-comment"></i> Motivo de Salida *
+                        </label>
+                        <select id="motivo" class="form-select"onchange="toggleEntregaAyudas()">
+                            <option value="Entrega de Ayudas">Entrega de Ayudas</option>
+                            <option value="Consumo Interno">Consumo Interno</option>
+                            <option value="Dañado">Dañado</option>
+                            <option value="Caducado">Caducado</option>
+                            <option value="Ajuste de Inventario">Ajuste de Inventario</option>
+                            <option value="Transferencia">Transferencia</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <!-- Después del select de motivo, agrega: -->
+                     <div class="form-group hidden" id="kitNombreGroup">
+                        <label for="kitNombre">
+                            <i class="fas fa-boxes"></i> Nombre del Kit/Mercado *
+                         </label>
+                        <input type="text" id="kitNombre" 
+                               placeholder="Ej: Mercado Básico, Kit Emergencia, Ayuda Familiar"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="cliente">
+                            <i class="fas fa-user"></i> Cliente/Destino
+                        </label>
+                        <input type="text" id="cliente" 
+                               placeholder="Nombre del cliente o destino..."
+                               class="form-control">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="notas">
+                            <i class="fas fa-sticky-note"></i> Notas Adicionales
+                        </label>
+                        <textarea id="notas" rows="3" 
+                                  placeholder="Observaciones, número de factura, etc."
+                                  class="form-control"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="fecha">
+                            <i class="fas fa-calendar"></i> Fecha de Salida
+                        </label>
+                        <input type="datetime-local" id="fecha" 
+                               class="form-control">
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button onclick="verificarYAgregar()" class="btn btn-warning" id="btnAgregar" disabled>
+                        <i class="fas fa-plus"></i> Agregar a la Lista
+                    </button>
+                    <button onclick="limpiarFormulario()" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="stock-alert hidden" id="stockAlerta">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>Atención:</strong> El stock disponible es menor que la cantidad solicitada.
+                        <div id="detalleAlerta"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="salida-lista-container">
+            <div class="lista-card">
+                <div class="lista-header">
+                    <h3><i class="fas fa-list"></i> Salidas Pendientes</h3>
+                    <span class="badge" id="contadorSalidas">0</span>
+                </div>
+                
+                <div class="lista-body" id="listaSalidas">
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-list fa-3x"></i>
+                        <p>No hay salidas pendientes</p>
+                        <small>Agrega productos usando el formulario</small>
+                    </div>
+                </div>
+                
+                <div class="lista-footer">
+                    <div class="lista-totales">
+                        <div class="total-item">
+                            <span>Productos:</span>
+                            <strong id="totalProductos">0</strong>
+                        </div>
+                        <div class="total-item">
+                            <span>Unidades:</span>
+                            <strong id="totalUnidades">0</strong>
+                        </div>
+                        <div class="total-item">
+                            <span>Destino:</span>
+                            <strong id="destinoPrincipal">Varios</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="lista-actions">
+                        <button onclick="registrarSalidas()" class="btn btn-success" id="btnRegistrar" disabled>
+                            <i class="fas fa-check-circle"></i> Registrar Salidas
+                        </button>
+                        <button onclick="limpiarLista()" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Limpiar Todo
+                        </button>
+                        <button onclick="generarPDF()" class="btn btn-danger" id="btnGenerarPDF" style="display: none;">
+                            <i class="fas fa-file-pdf"></i> Generar Comprobante
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="historial-card">
+                <h3><i class="fas fa-history"></i> Últimas Salidas</h3>
+                <div class="historial-list" id="historialSalidas">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Cargando historial...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+<!-- Modal de escaneo múltiple -->
+<div id="modalEscaneo" class="modal hidden">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-camera"></i> Escanear Múltiples Productos</h3>
+            <button onclick="cerrarModalEscaneo()" class="btn-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <!-- Contador de productos -->
+            <div class="scan-counter mb-3">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Modo de escaneo múltiple:</strong> 
+                    Escanea cada producto, ingresa la cantidad y luego presiona "Continuar"
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-primary fs-6">
+                        <i class="fas fa-box"></i> 
+                        Productos: <span id="contadorEscaneados">0</span>
+                    </span>
+                    <button onclick="finalizarEscaneo()" class="btn btn-success" id="btnFinalizarEscaneo" disabled>
+                        <i class="fas fa-check-circle"></i> Terminar (<span id="contadorProductos">0</span>)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Escáner -->
+            <div class="scanner-container" id="scannerSalida" style="height: 300px;">
+                <!-- El escáner se inicializará aquí -->
+            </div>
+            
+            <!-- Área para mostrar producto escaneado -->
+            <div id="areaProductoEscaneado" class="mt-3">
+                <!-- Aquí se mostrará el producto cuando se escanee -->
+            </div>
+            
+            <!-- Lista de productos escaneados -->
+            <div class="mt-3" id="listaEscaneadosContainer">
+                <h5><i class="fas fa-list"></i> Productos Escaneados</h5>
+                <div class="productos-escaneados-container" id="listaEscaneadosModal">
+                    <div class="empty-state-small">
+                        <i class="fas fa-qrcode fa-2x"></i>
+                        <p>Escanea el primer producto</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Entrada manual -->
+            <div class="manual-input mt-3">
+                <div class="input-group">
+                    <input type="text" id="codigoManual" 
+                           placeholder="Ingresa código manualmente..."
+                           class="form-control">
+                    <button onclick="procesarCodigoManual()" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Agregar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button onclick="continuarEscaneando()" class="btn btn-secondary" id="btnContinuar" style="display: none;">
+                <i class="fas fa-plus"></i> Escanear Otro Producto
+            </button>
+            <button onclick="cerrarModalEscaneo()" class="btn btn-outline-secondary">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.salida-page {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.alert-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+    border-radius: 0.75rem;
+    padding: 1rem 1.5rem;
+    margin: 1rem 0 2rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.alert-info i {
+    font-size: 1.5rem;
+    margin-top: 0.125rem;
+}
+
+.salida-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 1024px) {
+    .salida-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.stock-alert {
+    margin-top: 1.5rem;
+}
+
+.alert-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.alert-warning i {
+    font-size: 1.5rem;
+    margin-top: 0.125rem;
+}
+
+.alert-warning div {
+    flex: 1;
+}
+
+.help-text {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.help-text span {
+    font-weight: 600;
+    color: var(--dark);
+}
+
+/* Estilos específicos para salida */
+.btn-warning {
+    background: var(--warning);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+/* Estilos para el modal de escaneo múltiple */
+.modal-content {
+    max-width: 800px !important;
+}
+
+.scan-counter .alert {
+    margin-bottom: 1rem;
+}
+
+.productos-escaneados-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+}
+
+.producto-escaneado-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background-color: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+}
+
+.producto-escaneado-item:last-child {
+    margin-bottom: 0;
+}
+
+.producto-escaneado-info {
+    flex: 1;
+}
+
+.producto-escaneado-info strong {
+    display: block;
+    color: #212529;
+}
+
+.producto-escaneado-info small {
+    color: #6c757d;
+    font-size: 0.875em;
+}
+
+.producto-escaneado-cantidad {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cantidad-badge {
+    background-color: #0d6efd;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    min-width: 40px;
+    text-align: center;
+}
+
+.btn-icon-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.btn-icon-sm.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-icon-sm.btn-danger:hover {
+    background-color: #bb2d3b;
+}
+
+.empty-state-small {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+
+.empty-state-small i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #adb5bd;
+}
+
+.modal-cantidad {
+    background-color: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.modal-cantidad-header {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.modal-cantidad-header h5 {
+    margin: 0;
+    color: #212529;
+}
+
+.modal-cantidad-body p {
+    margin-bottom: 1rem;
+}
+
+.modal-cantidad-footer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+/* Estilos para productos seleccionados */
+.productos-seleccionados-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--gray);
+}
+
+.productos-seleccionados-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+}
+
+.producto-seleccionado-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--light);
+    border-radius: 0.5rem;
+    border: 1px solid var(--gray);
+}
+
+.producto-seleccionado-info {
+    flex: 1;
+}
+
+.producto-seleccionado-info strong {
+    display: block;
+    color: var(--dark);
+}
+
+.producto-seleccionado-info small {
+    color: var(--secondary);
+}
+
+.producto-seleccionado-cantidad {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+}
+
+.producto-seleccionado-cantidad input {
+    width: 80px;
+    text-align: center;
+}
+
+.btn-icon-sm {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--gray);
+    background: white;
+    color: var(--secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-icon-sm:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+.kit-summary {
+    background: #e8f5e9;
+    border: 1px solid #4caf50;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.kit-summary h5 {
+    color: #2e7d32;
+    margin-bottom: 0.5rem;
+}
+
+.hidden {
+    display: none;
+}
+.historial-item {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem;
+}
+
+.historial-item:last-child {
+    border-bottom: none;
+}
+
+.historial-fecha {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
+.historial-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.historial-producto {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.historial-cantidad {
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.historial-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+}
+
+.btn-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-pdf-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.btn-pdf-success:hover {
+    background-color: #059669;
+}
+
+.btn-pdf-warning {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.btn-pdf-warning:hover {
+    background-color: #d97706;
+}
+
+.btn-pdf-outline {
+    background-color: white;
+    color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+.btn-pdf-outline:hover {
+    background-color: #eff6ff;
+}
+
+.pdf-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    background-color: #10b981;
+    color: white;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.pdf-icon-small {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #dc2626;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+</style>
+
+<script>
+let scanner = null;
+let salidasPendientes = [];
+let productoSeleccionado = null;
+let productosEscaneadosModal = new Map(); // Almacena productos escaneados en modal
+let productosSeleccionados = []; // Para "Entrega de Ayudas"
+let modoEntregaAyudas = false;
+
+// Inicializar
+document.addEventListener('DOMContentLoaded', function() {
+    cargarHistorialSalidas();
+    
+    // Configurar fecha actual por defecto
+    const now = new Date();
+    const fechaInput = document.getElementById('fecha');
+    fechaInput.value = now.toISOString().slice(0, 16);
+    
+    // Buscar producto al presionar Enter
+    document.getElementById('buscarProducto').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarProducto();
+        }
+    });
+    
+    // Validar cantidad en tiempo real
+    document.getElementById('cantidad').addEventListener('input', function() {
+        if (productoSeleccionado) {
+            verificarStock();
+        }
+    });
+    // 🆕 INICIALIZAR MODO ENTREGA DE AYUDAS
+    console.log('Llamando toggleEntregaAyudas()...');
+    toggleEntregaAyudas();
+    console.log('Inicialización completada');
+});
+
+// Buscar producto (similar a entrada)
+async function buscarProducto() {
+    const query = document.getElementById('buscarProducto').value.trim();
+    console.log('Buscando:', query); // <-- Agrega esto
+    
+    if (!query) {
+        alert('Por favor ingresa un código o nombre para buscar');
+        return;
+    }
+    
+    try {
+        const url = `/api/productos/buscar?q=${encodeURIComponent(query)}`;
+        console.log('URL:', url); // <-- Agrega esto
+        
+        const response = await fetch(url);
+        console.log('Status:', response.status); // <-- Agrega esto
+        
+        if (!response.ok) {
+            console.log('Error response:', await response.text()); // <-- Agrega esto
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const productos = await response.json();
+        console.log('Productos encontrados:', productos); // <-- Agrega esto
+        
+        if (productos.length === 0) {
+            alert('No se encontró ningún producto');
+            return;
+        }
+        
+        if (productos.length === 1) {
+            seleccionarProducto(productos[0]);
+        } else {
+            mostrarSelectorProductos(productos);
+        }
+        
+    } catch (error) {
+        console.error('Error completo buscando producto:', error);
+        alert(`Error al buscar producto: ${error.message}`);
+    }
+}
+
+function seleccionarProducto(producto) {
+    if (modoEntregaAyudas) {
+        // Modo kit: agregar a la lista de productos
+        agregarProductoAKit(producto);
+    } else {
+        // Modo normal: seleccionar un solo producto
+        seleccionarProductoNormal(producto);
+    }
+}
+
+function seleccionarProductoNormal(producto) {
+    productoSeleccionado = producto;
+    
+    const container = document.getElementById('productoSeleccionado');
+    container.innerHTML = `
+        <div class="producto-info">
+            <div class="producto-header">
+                <span class="producto-codigo">${producto.codigo}</span>
+                <button onclick="deseleccionarProducto()" class="btn-icon">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <h3 class="producto-nombre">${producto.nombre}</h3>
+            
+            <div class="producto-detalles">
+                <div class="detalle-item">
+                    <span class="detalle-label">Stock Disponible</span>
+                    <span class="detalle-valor stock-info">${producto.stock_actual}</span>
+                </div>
+                <div class="detalle-item">
+                    <span class="detalle-label">Stock Mínimo</span>
+                    <span class="detalle-valor">${producto.stock_minimo}</span>
+                </div>
+                <div class="detalle-item">
+                    <span class="detalle-label">Categoría</span>
+                    <span class="detalle-valor">${producto.categoria || 'Sin categoría'}</span>
+                </div>
+                <div class="detalle-item">
+                    <span class="detalle-label">Descripción</span>
+                    <span class="detalle-valor">${producto.descripcion || 'Sin descripción'}</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.classList.remove('hidden');
+    
+    // Actualizar información de stock
+    document.getElementById('stockDisponible').textContent = producto.stock_actual;
+    
+    // Verificar stock bajo
+    if (producto.stock_actual <= producto.stock_minimo) {
+        const stockInfo = container.querySelector('.stock-info');
+        stockInfo.style.color = 'var(--warning)';
+        stockInfo.style.fontWeight = 'bold';
+    }
+    
+    if (producto.stock_actual === 0) {
+        const stockInfo = container.querySelector('.stock-info');
+        stockInfo.style.color = 'var(--danger)';
+        stockInfo.innerHTML = `${producto.stock_actual} <i class="fas fa-exclamation-circle"></i>`;
+    }
+    
+    // Habilitar botón y verificar stock
+    document.getElementById('btnAgregar').disabled = false;
+    document.getElementById('buscarProducto').value = '';
+    verificarStock();
+}
+function agregarProductoAKit(producto) {
+    // Verificar si ya está en la lista
+    const existente = productosSeleccionados.find(p => p.id === producto.id);
+    
+    if (existente) {
+        existente.cantidad_kit += 1;
+    } else {
+        productosSeleccionados.push({
+            ...producto,
+            cantidad: 1,
+            cantidad_kit: 1 // Cantidad por kit
+        });
+    }
+    
+    actualizarListaProductosSeleccionados();
+    mostrarContenedorProductos();
+    
+    // 🆕 HABILITAR EL BOTÓN DE AGREGAR Y MOSTRAR CAMPOS DE KIT
+    document.getElementById('btnAgregar').disabled = false;
+    
+    // Si estamos en modo kit, asegurar que los campos estén visibles
+    if (modoEntregaAyudas) {
+        const kitCantidadGroup = document.getElementById('kitCantidadGroup');
+        if (kitCantidadGroup) {
+            kitCantidadGroup.classList.remove('hidden');
+        }
+    }
+}
+
+function actualizarListaProductosSeleccionados() {
+    const lista = document.getElementById('listaProductosSeleccionados');
+    const contador = document.getElementById('contadorProductosSeleccionados');
+    
+    contador.textContent = productosSeleccionados.length;
+    
+    if (productosSeleccionados.length === 0) {
+        lista.innerHTML = `
+            <div class="empty-state-small">
+                <i class="fas fa-box-open"></i>
+                <p>No hay productos seleccionados</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    productosSeleccionados.forEach((producto, index) => {
+        html += `
+            <div class="producto-seleccionado-item">
+                <div class="producto-seleccionado-info">
+                    <strong>${producto.nombre}</strong>
+                    <small>${producto.codigo} • Stock: ${producto.stock_actual}</small>
+                </div>
+                
+                <div class="producto-seleccionado-cantidad">
+                    <input type="number" 
+                           value="${producto.cantidad_kit}" 
+                           min="1" 
+                           max="${producto.stock_actual}"
+                           onchange="actualizarCantidadKit(${index}, this.value)"
+                           class="form-control form-control-sm">
+                    <span>unidades/kit</span>
+                    <button onclick="eliminarProductoKit(${index})" 
+                            class="btn-icon-sm" title="Eliminar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    lista.innerHTML = html;
+}
+
+function mostrarContenedorProductos() {
+    const containerKits = document.getElementById('productosSeleccionados');
+    const containerIndividual = document.getElementById('productoSeleccionado');
+    const kitOptions = document.getElementById('kitOptions'); // 🆕
+    const cantidadKitsField = document.getElementById('cantidadKits'); // 🆕
+    
+    if (modoEntregaAyudas) {
+        // Mostrar contenedor de kits, ocultar individual
+        if (containerKits) {
+            containerKits.classList.remove('hidden');
+            containerKits.style.display = 'block';
+        }
+        
+        // 🆕 MOSTRAR opciones de kit
+        if (kitOptions) {
+            kitOptions.classList.remove('hidden');
+        }
+        
+        // 🆕 HABILITAR y enfocar campo de cantidad de kits
+        if (cantidadKitsField) {
+            cantidadKitsField.disabled = false;
+            setTimeout(() => {
+                cantidadKitsField.focus();
+                cantidadKitsField.select();
+            }, 100);
+        }
+        
+        if (containerIndividual) {
+            containerIndividual.classList.add('hidden');
+        }
+        
+        // HABILITAR el botón de agregar
+        document.getElementById('btnAgregar').disabled = false;
+        
+    } else {
+        // Mostrar contenedor individual, ocultar kits
+        if (containerIndividual) {
+            containerIndividual.classList.remove('hidden');
+        }
+        if (containerKits) {
+            containerKits.classList.add('hidden');
+        }
+    }
+}
+
+function actualizarCantidadKit(index, cantidad) {
+    if (productosSeleccionados[index]) {
+        productosSeleccionados[index].cantidad_kit = parseInt(cantidad) || 1;
+    }
+}
+
+function eliminarProductoKit(index) {
+    if (confirm('¿Eliminar este producto del kit?')) {
+        productosSeleccionados.splice(index, 1);
+        actualizarListaProductosSeleccionados();
+        
+        if (productosSeleccionados.length === 0) {
+            const containerKits = document.getElementById('productosSeleccionados');
+            if (containerKits) {
+                containerKits.classList.add('hidden');
+            }
+        }
+    }
+}
+function deseleccionarProducto() {
+    productoSeleccionado = null;
+    
+    // Ocultar ambos contenedores
+    const containerIndividual = document.getElementById('productoSeleccionado');
+    const containerKits = document.getElementById('productosSeleccionados');
+    
+    if (containerIndividual) {
+        containerIndividual.classList.add('hidden');
+    }
+    if (containerKits) {
+        containerKits.classList.add('hidden');
+    }
+    
+    document.getElementById('btnAgregar').disabled = true;
+    document.getElementById('stockAlerta').classList.add('hidden');
+}
+
+function mostrarSelectorProductos(productos) {
+    const modal = crearModal(`
+        <h3><i class="fas fa-boxes"></i> Seleccionar Producto</h3>
+        <p>Se encontraron ${productos.length} productos:</p>
+        
+        <div class="productos-lista">
+            ${productos.map(producto => `
+                <div class="producto-opcion" onclick="seleccionarDesdeLista(${producto.id})">
+                    <div class="producto-opcion-info">
+                        <strong>${producto.nombre}</strong>
+                        <small>${producto.codigo} • Stock: ${producto.stock_actual}</small>
+                    </div>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            `).join('')}
+        </div>
+        
+        <div class="modal-buttons">
+            <button onclick="cerrarModal()" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    `);
+    
+    mostrarModal(modal);
+}
+
+async function seleccionarDesdeLista(productoId) {
+    try {
+        const response = await fetch(`/api/productos/${productoId}`);
+        const producto = await response.json();
+        seleccionarProducto(producto);
+        cerrarModal();
+    } catch (error) {
+        alert('Error al cargar producto');
+    }
+}
+function toggleEntregaAyudas() {
+    const motivo = document.getElementById('motivo').value;
+    modoEntregaAyudas = (motivo === 'Entrega de Ayudas');
+    console.log('Modo Entrega de Ayudas:', modoEntregaAyudas);
+    
+    const kitNombreGroup = document.getElementById('kitNombreGroup');
+    const kitOptions = document.getElementById('kitOptions'); // 🆕 Este elemento
+    const cantidadField = document.getElementById('cantidad');
+    const clienteField = document.getElementById('cliente');
+    const cantidadKitsField = document.getElementById('cantidadKits'); // 🆕 Campo específico
+    
+    if (modoEntregaAyudas) {
+        kitNombreGroup.classList.remove('hidden');
+        
+        // 🆕 MOSTRAR las opciones de kit
+        if (kitOptions) {
+            kitOptions.classList.remove('hidden');
+        }
+        
+        cantidadField.disabled = true;
+        cantidadField.value = 1;
+        
+        // 🆕 HABILITAR Y ENFOCAR el campo de cantidad de kits
+        if (cantidadKitsField) {
+            cantidadKitsField.disabled = false;
+            cantidadKitsField.focus();
+            cantidadKitsField.select(); // Seleccionar el texto para editar
+        }
+        
+        clienteField.placeholder = 'Nombre del beneficiario *';
+        clienteField.required = true;
+        
+        // Mostrar contenedor de kits si hay productos seleccionados
+        if (productosSeleccionados.length > 0) {
+            mostrarContenedorProductos();
+        }
+    } else {
+        kitNombreGroup.classList.add('hidden');
+        
+        // 🆕 OCULTAR las opciones de kit
+        if (kitOptions) {
+            kitOptions.classList.add('hidden');
+        }
+        
+        cantidadField.disabled = false;
+        
+        // 🆕 DESHABILITAR campo de kits
+        if (cantidadKitsField) {
+            cantidadKitsField.disabled = true;
+        }
+        
+        clienteField.placeholder = 'Nombre del cliente o destino...';
+        clienteField.required = false;
+        
+        // Ocultar contenedor de kits
+        const containerKits = document.getElementById('productosSeleccionados');
+        if (containerKits) {
+            containerKits.classList.add('hidden');
+        }
+    }
+}
+// Verificar stock
+function verificarStock() {
+    if (!productoSeleccionado) return;
+    
+    const cantidad = parseInt(document.getElementById('cantidad').value) || 0;
+    const stockDisponible = productoSeleccionado.stock_actual;
+    const alerta = document.getElementById('stockAlerta');
+    const detalleAlerta = document.getElementById('detalleAlerta');
+    
+    if (cantidad > stockDisponible) {
+        // Stock insuficiente
+        detalleAlerta.innerHTML = `
+            <p>Solicitaste: <strong>${cantidad} unidades</strong></p>
+            <p>Stock disponible: <strong>${stockDisponible} unidades</strong></p>
+            <p class="text-danger">Faltan: <strong>${cantidad - stockDisponible} unidades</strong></p>
+        `;
+        alerta.classList.remove('hidden');
+        document.getElementById('btnAgregar').disabled = true;
+    } else if (cantidad > stockDisponible * 0.8) {
+        // Stock crítico (más del 80% del stock)
+        detalleAlerta.innerHTML = `
+            <p>Solicitaste: <strong>${cantidad} unidades</strong></p>
+            <p>Stock disponible: <strong>${stockDisponible} unidades</strong></p>
+            <p class="text-warning">Quedarán solo <strong>${stockDisponible - cantidad} unidades</strong></p>
+        `;
+        alerta.classList.remove('hidden');
+        document.getElementById('btnAgregar').disabled = false;
+    } else {
+        // Stock suficiente
+        alerta.classList.add('hidden');
+        document.getElementById('btnAgregar').disabled = false;
+    }
+}
+
+// 🆕 FUNCIÓN MODIFICADA PARA ESCANEO MÚLTIPLE
+function iniciarEscaneoSalida() {
+    const modal = document.getElementById('modalEscaneo');
+    modal.classList.remove('hidden');
+    
+function iniciarEscaneoSimple() {
+    alert('Función de escaneo simple - Escanea un producto a la vez');
+    // Puedes reutilizar el modal existente pero simplificado
+}    
+    // Limpiar lista anterior
+    productosEscaneadosModal.clear();
+    actualizarContadoresModal();
+    actualizarListaEscaneadosModal();
+    
+    // Mostrar lista vacía
+    document.getElementById('listaEscaneadosModal').innerHTML = `
+        <div class="empty-state-small">
+            <i class="fas fa-qrcode fa-2x"></i>
+            <p>Escanea el primer producto</p>
+        </div>
+    `;
+    
+    // Inicializar escáner después de mostrar el modal
+    setTimeout(() => {
+        if (!scanner) {
+            scanner = new QRScanner({
+                elementId: 'scannerSalida',
+                onScan: procesarCodigoEscaneadoMultiple, // 🆕 Cambiado a función nueva
+                onError: (error) => {
+                    console.error('Error del escáner:', error);
+                    mostrarErrorEnModal('Error al acceder a la cámara');
+                }
+            });
+        }
+        
+        scanner.start();
+        document.getElementById('btnContinuar').style.display = 'none';
+    }, 100);
+}
+
+function cerrarModalEscaneo() {
+    if (scanner) {
+        scanner.stop();
+    }
+    
+    const modal = document.getElementById('modalEscaneo');
+    modal.classList.add('hidden');
+    document.getElementById('codigoManual').value = '';
+}
+
+async function procesarCodigoEscaneado(resultado) {
+    if (resultado.valid) {
+        try {
+            // Usar el mismo endpoint que la búsqueda manual
+            const response = await fetch(`/api/productos/buscar?q=${encodeURIComponent(resultado.code)}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const productos = await response.json();
+            
+            if (productos.length === 0) {
+                alert(`Producto no encontrado: ${resultado.code}`);
+                return;
+            }
+            
+            // Si hay exactamente 1 producto, seleccionarlo
+            if (productos.length === 1) {
+                seleccionarProducto(productos[0]);
+                cerrarModalEscaneo();
+                document.getElementById('cantidad').focus();
+            } else {
+                // Si hay múltiples, mostrar selector
+                mostrarSelectorProductos(productos);
+                cerrarModalEscaneo();
+            }
+            
+        } catch (error) {
+            console.error('Error buscando producto escaneado:', error);
+            alert(`Error al buscar producto: ${error.message}`);
+        }
+    }
+}
+async function procesarCodigoEscaneadoMultiple(resultado) {
+    if (!resultado.valid) return;
+    
+    try {
+        const response = await fetch(`/api/productos/buscar?q=${encodeURIComponent(resultado.code)}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const productos = await response.json();
+        
+        if (productos.length === 0) {
+            mostrarErrorEnModal(`Producto no encontrado: ${resultado.code}`);
+            return;
+        }
+        
+        // Tomar el primer producto (el más relevante)
+        const producto = productos[0];
+        
+        // Verificar si ya fue escaneado
+        if (productosEscaneadosModal.has(producto.id)) {
+            mostrarErrorEnModal(`${producto.nombre} ya está en la lista`);
+            return;
+        }
+        
+        // Preguntar cantidad
+        preguntarCantidad(producto);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarErrorEnModal(`Error al buscar producto: ${error.message}`);
+    }
+}
+function procesarCodigoManual() {
+    const codigo = document.getElementById('codigoManual').value.trim();
+    if (!codigo) {
+        mostrarErrorEnModal('Por favor ingresa un código');
+        return;
+    }
+    
+    // 🆕 Usar la nueva función para múltiples
+    procesarCodigoEscaneadoMultiple({
+        code: codigo,
+        valid: true,
+        type: 'manual'
+    });
+    
+    // Limpiar input
+    document.getElementById('codigoManual').value = '';
+}
+
+// Manejo de salidas
+function verificarYAgregar() {
+    console.log('=== verificarYAgregar llamado ===');
+    console.log('modoEntregaAyudas:', modoEntregaAyudas);
+    console.log('productosSeleccionados length:', productosSeleccionados.length);
+    console.log('productoSeleccionado:', productoSeleccionado);
+    
+    const motivo = document.getElementById('motivo').value;
+    console.log('Motivo actual:', motivo);
+    
+    // Determinar modo basado en motivo seleccionado
+    const esKit = (motivo === 'Entrega de Ayudas');
+    
+    if (esKit) {
+        console.log('Modo KIT detectado');
+        
+        if (productosSeleccionados.length === 0) {
+            alert('Por favor selecciona al menos un producto para el kit');
+            return;
+        }
+        
+        const kitNombre = document.getElementById('kitNombre').value.trim();
+        const cantidadKits = parseInt(document.getElementById('cantidadKits').value);
+        const cliente = document.getElementById('cliente').value;
+        
+        console.log('Datos kit:', { kitNombre, cantidadKits, cliente });
+        
+        if (!kitNombre) {
+            alert('Por favor ingresa un nombre para el kit');
+            return;
+        }
+        
+        if (!cliente) {
+            alert('Por favor ingresa el nombre del beneficiario');
+            return;
+        }
+        
+        if (cantidadKits <= 0) {
+            alert('La cantidad de kits debe ser mayor a 0');
+            return;
+        }
+        
+        // Llamar a agregarKitALista directamente
+        agregarKitALista();
+        
+    } else {
+        console.log('Modo NORMAL detectado');
+        
+        if (!productoSeleccionado) {
+            alert('Por favor selecciona un producto primero');
+            return;
+        }
+        
+        const cantidad = parseInt(document.getElementById('cantidad').value);
+        const stockDisponible = productoSeleccionado.stock_actual;
+        
+        if (cantidad <= 0) {
+            alert('La cantidad debe ser mayor a 0');
+            return;
+        }
+        
+        if (cantidad > stockDisponible) {
+            alert(`Stock insuficiente. Disponible: ${stockDisponible}, Solicitado: ${cantidad}`);
+            return;
+        }
+        
+        agregarALista();
+    }
+}
+
+function verificarYAgregarNormal() {
+    if (!productoSeleccionado) {
+        alert('Por favor selecciona un producto primero');
+        return;
+    }
+    
+    const cantidad = parseInt(document.getElementById('cantidad').value);
+    const stockDisponible = productoSeleccionado.stock_actual;
+    
+    if (cantidad <= 0) {
+        alert('La cantidad debe ser mayor a 0');
+        return;
+    }
+    
+    if (cantidad > stockDisponible) {
+        alert(`Stock insuficiente. Disponible: ${stockDisponible}, Solicitado: ${cantidad}`);
+        return;
+    }
+    
+    agregarALista();
+}
+function agregarALista() {
+    const cantidad = parseInt(document.getElementById('cantidad').value);
+    const motivo = document.getElementById('motivo').value;
+    const cliente = document.getElementById('cliente').value;
+    const notas = document.getElementById('notas').value;
+    const fecha = document.getElementById('fecha').value;
+    
+    // Crear salida NORMAL (sin precio)
+    const salida = {
+        id: Date.now(), // ID temporal
+        producto: productoSeleccionado,
+        producto_id: productoSeleccionado.id,
+        cantidad: cantidad,
+        motivo: motivo,
+        cliente: cliente,
+        notas: notas,
+        fecha: fecha || new Date().toISOString(),
+        stock_restante: productoSeleccionado.stock_actual - cantidad
+    };
+    
+    // Agregar a la lista
+    salidasPendientes.push(salida);
+    
+    // Actualizar interfaz
+    actualizarListaSalidas();
+    limpiarFormulario();
+    
+    // Mostrar confirmación
+    mostrarExito(`${cantidad} unidades de "${productoSeleccionado.nombre}" agregadas a la lista`);
+}
+function agregarKitALista() {
+    console.log('agregarKitALista llamado'); // Debug
+    const kitNombre = document.getElementById('kitNombre').value.trim();
+    const cantidadKits = parseInt(document.getElementById('cantidadKits').value);
+    const motivo = document.getElementById('motivo').value;
+    const cliente = document.getElementById('cliente').value;
+    const notas = document.getElementById('notas').value;
+    const fecha = document.getElementById('fecha').value;
+    
+    console.log('Datos del kit:', { kitNombre, cantidadKits, motivo, cliente }); // Debug
+    
+    // Validaciones
+    if (productosSeleccionados.length === 0) {
+        alert('Por favor selecciona al menos un producto para el kit');
+        return;
+    }
+    
+    if (!kitNombre) {
+        alert('Por favor ingresa un nombre para el kit');
+        return;
+    }
+    
+    if (!cliente) {
+        alert('Por favor ingresa el nombre del beneficiario');
+        return;
+    }
+    
+    if (cantidadKits <= 0) {
+        alert('La cantidad de kits debe ser mayor a 0');
+        return;
+    }
+    
+    // Verificar stock para todos los productos
+    const erroresStock = [];
+    
+    productosSeleccionados.forEach(producto => {
+        const totalNecesario = producto.cantidad_kit * cantidadKits;
+        if (totalNecesario > producto.stock_actual) {
+            erroresStock.push({
+                producto: producto.nombre,
+                necesario: totalNecesario,
+                disponible: producto.stock_actual,
+                porKit: producto.cantidad_kit
+            });
+        }
+    });
+    
+    if (erroresStock.length > 0) {
+        let mensaje = 'Stock insuficiente para el kit:\n\n';
+        erroresStock.forEach(e => {
+            mensaje += `• ${e.producto}: Necesario ${e.porKit} × ${cantidadKits} kits = ${e.necesario} unidades, Disponible: ${e.disponible}\n`;
+        });
+        alert(mensaje);
+        return;
+    }
+    
+    // Crear kit
+    const kit = {
+        id: Date.now(), // ID temporal
+        tipo: 'kit',
+        nombre: kitNombre,
+        cantidad_kits: cantidadKits,
+        motivo: motivo,
+        cliente: cliente,
+        notas: notas,
+        fecha: fecha || new Date().toISOString(),
+        productos: productosSeleccionados.map(p => ({
+            producto_id: p.id,
+            producto_nombre: p.nombre,
+            producto_codigo: p.codigo,
+            cantidad_por_kit: p.cantidad_kit,
+            cantidad_total: p.cantidad_kit * cantidadKits,
+            stock_disponible: p.stock_actual
+        }))
+    };
+    
+    console.log('Kit creado:', kit); // Debug
+    
+    // Agregar a la lista de salidas
+    salidasPendientes.push(kit);
+    
+    // Actualizar interfaz
+    actualizarListaSalidas();
+    limpiarFormularioKit();
+    
+    // Mostrar confirmación
+    const totalProductos = productosSeleccionados.reduce((sum, p) => sum + p.cantidad_kit, 0);
+    mostrarExito(`Kit "${kitNombre}" agregado: ${cantidadKits} kits × ${totalProductos} productos totales`);
+}
+
+function limpiarFormulario() {
+    // Para modo normal
+    deseleccionarProducto();
+    document.getElementById('cantidad').value = 1;
+    document.getElementById('cliente').value = '';
+    document.getElementById('notas').value = '';
+    document.getElementById('fecha').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('stockAlerta').classList.add('hidden');
+    document.getElementById('buscarProducto').focus();
+    
+    // Para modo kit
+    productosSeleccionados = [];
+    document.getElementById('kitNombre').value = '';
+    document.getElementById('cantidadKits').value = 1;
+}
+function limpiarFormularioKit() {
+    productosSeleccionados = [];
+    document.getElementById('kitNombre').value = '';
+    document.getElementById('cantidadKits').value = 1;
+    document.getElementById('cliente').value = '';
+    document.getElementById('notas').value = '';
+    document.getElementById('productosSeleccionados').classList.add('hidden');
+    document.getElementById('buscarProducto').value = '';
+    document.getElementById('buscarProducto').focus();
+
+    // Ocultar contenedor de productos seleccionados
+    const containerKits = document.getElementById('productosSeleccionados');
+    if (containerKits) {
+        containerKits.classList.add('hidden');
+    }
+    
+    document.getElementById('buscarProducto').value = '';
+    document.getElementById('buscarProducto').focus();
+}
+// Agrega esta función para mostrar/ocultar el botón de PDF
+function actualizarBotonPDF() {
+    const btnPDF = document.getElementById('btnGenerarPDF');
+    btnPDF.style.display = salidasPendientes.length > 0 ? 'inline-block' : 'none';
+}
+function actualizarListaSalidas() {
+    const lista = document.getElementById('listaSalidas');
+    const contador = document.getElementById('contadorSalidas');
+    const btnRegistrar = document.getElementById('btnRegistrar');
+    
+    contador.textContent = salidasPendientes.length;
+    btnRegistrar.disabled = salidasPendientes.length === 0;
+    
+    if (salidasPendientes.length === 0) {
+        lista.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-clipboard-list fa-3x"></i>
+                <p>No hay salidas pendientes</p>
+                <small>Agrega productos usando el formulario</small>
+            </div>
+        `;
+    } else {
+        let html = '';
+        
+        salidasPendientes.forEach((salida, index) => {
+            if (salida.tipo === 'kit') {
+                // Mostrar kit (Entrega de Ayudas)
+                const totalUnidadesKit = salida.productos.reduce((sum, p) => 
+                    sum + (p.cantidad_por_kit * salida.cantidad_kits), 0);
+                
+                html += `
+                    <div class="entrada-item kit-item">
+                        <div class="entrada-info">
+                            <div class="entrada-producto">
+                                <i class="fas fa-boxes"></i> ${salida.nombre}
+                            </div>
+                            <div class="entrada-detalles">
+                                <small>
+                                    ${salida.motivo} • Beneficiario: ${salida.cliente || 'No especificado'}
+                                    <br>
+                                    ${salida.cantidad_kits} kits × ${salida.productos.length} productos
+                                    (${totalUnidadesKit} unidades totales)
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="entrada-cantidad">${salida.cantidad_kits}</div>
+                        
+                        <div class="entrada-acciones">
+                            <button class="btn-icon" onclick="mostrarDetalleKit(${index})" title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-icon" onclick="eliminarSalida(${index})" title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Mostrar salida normal (producto individual)
+                const stockClass = salida.stock_restante <= salida.producto.stock_minimo ? 'warning' : '';
+                
+                html += `
+                    <div class="entrada-item">
+                        <div class="entrada-info">
+                            <div class="entrada-producto">${salida.producto.nombre}</div>
+                            <div class="entrada-detalles">
+                                <small>
+                                    ${salida.motivo} • 
+                                    ${salida.cliente ? 'Destino: ' + salida.cliente : ''} 
+                                    ${salida.cliente ? '• ' : ''}
+                                    Stock restante: 
+                                    <span class="${stockClass}">${salida.stock_restante}</span>
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="entrada-cantidad">-${salida.cantidad}</div>
+                        
+                        <div class="entrada-acciones">
+                            <button class="btn-icon" onclick="eliminarSalida(${index})" title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        lista.innerHTML = html;
+    }
+    
+    // Actualizar totales (sin valor monetario)
+    actualizarTotales();
+    actualizarBotonPDF();
+}
+
+function mostrarDetalleKit(index) {
+    const kit = salidasPendientes[index];
+    
+    let detalles = `<h4><i class="fas fa-boxes"></i> ${kit.nombre}</h4>`;
+    detalles += `<p><strong>Tipo:</strong> ${kit.motivo}</p>`;
+    detalles += `<p><strong>Beneficiario:</strong> ${kit.cliente || 'No especificado'}</p>`;
+    detalles += `<p><strong>Cantidad de kits:</strong> ${kit.cantidad_kits}</p>`;
+    
+    if (kit.notas) {
+        detalles += `<p><strong>Notas:</strong> ${kit.notas}</p>`;
+    }
+    
+    detalles += `<hr><h5>Productos en el kit:</h5>`;
+    detalles += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
+    detalles += `<tr style="background: #f1f1f1;">
+                    <th style="padding: 8px; text-align: left;">Producto</th>
+                    <th style="padding: 8px; text-align: left;">Código</th>
+                    <th style="padding: 8px; text-align: center;">Unid/Kit</th>
+                    <th style="padding: 8px; text-align: center;">Total</th>
+                 </tr>`;
+    
+    let contador = 0;
+    kit.productos.forEach(p => {
+        const total = p.cantidad_por_kit * kit.cantidad_kits;
+        detalles += `<tr style="${contador % 2 === 0 ? 'background: #f9f9f9;' : ''}">
+                        <td style="padding: 8px;">${p.producto_nombre}</td>
+                        <td style="padding: 8px;">${p.producto_codigo}</td>
+                        <td style="padding: 8px; text-align: center;">${p.cantidad_por_kit}</td>
+                        <td style="padding: 8px; text-align: center;">${total} unidades</td>
+                     </tr>`;
+        contador++;
+    });
+    
+    detalles += `</table>`;
+    
+    // Mostrar en modal
+    const modal = crearModal(detalles);
+    mostrarModal(modal);
+}
+
+function eliminarSalida(index) {
+    const salida = salidasPendientes[index];
+    let mensaje = '';
+    
+    if (salida.tipo === 'kit') {
+        mensaje = `¿Eliminar kit "${salida.nombre}" de ${salida.cantidad_kits} kits?`;
+    } else {
+        mensaje = `¿Eliminar salida de ${salida.cantidad} unidades de "${salida.producto.nombre}"?`;
+    }
+    
+    if (confirm(mensaje)) {
+        salidasPendientes.splice(index, 1);
+        actualizarListaSalidas();
+    }
+}
+
+function actualizarTotales() {
+    const totalSalidas = salidasPendientes.length;
+    let totalUnidades = 0;
+    let totalKits = 0;
+    let destinoPrincipal = 'Varios';
+    
+    // Calcular totales
+    salidasPendientes.forEach(salida => {
+        if (salida.tipo === 'kit') {
+            totalKits += salida.cantidad_kits;
+            // Sumar unidades de todos los productos del kit
+            salida.productos.forEach(p => {
+                totalUnidades += p.cantidad_total;
+            });
+        } else {
+            totalUnidades += salida.cantidad;
+        }
+    });
+    
+    // Determinar destino principal (para kits, usar beneficiario; para normales, usar cliente)
+    const destinos = {};
+    salidasPendientes.forEach(salida => {
+        let destino = '';
+        if (salida.tipo === 'kit') {
+            destino = salida.cliente || 'Kit sin beneficiario';
+        } else {
+            destino = salida.cliente || 'Sin destino';
+        }
+        
+        destinos[destino] = (destinos[destino] || 0) + 1;
+    });
+    
+    // Encontrar el destino más frecuente
+    if (Object.keys(destinos).length > 0) {
+        const masFrecuente = Object.entries(destinos).sort((a, b) => b[1] - a[1])[0];
+        destinoPrincipal = masFrecuente[0];
+    }
+    
+    // Actualizar UI
+    document.getElementById('totalProductos').textContent = totalSalidas;
+    document.getElementById('totalUnidades').textContent = totalUnidades;
+    document.getElementById('destinoPrincipal').textContent = destinoPrincipal;
+    
+    // Mostrar información adicional si hay kits
+    if (totalKits > 0) {
+        document.getElementById('totalProductos').innerHTML = 
+            `${totalSalidas} <small style="color: var(--secondary);">(${totalKits} kits)</small>`;
+    }
+}
+
+function limpiarLista() {
+    if (salidasPendientes.length === 0) return;
+    
+    if (confirm(`¿Eliminar todas las ${salidasPendientes.length} salidas pendientes?`)) {
+        salidasPendientes = [];
+        actualizarListaSalidas();
+    }
+}
+
+// Registrar salidas
+async function registrarSalidas() {
+    if (salidasPendientes.length === 0) return;
+    
+    // Verificar stock nuevamente antes de registrar
+    const erroresStock = [];
+    
+    for (const salida of salidasPendientes) {
+        try {
+            // Obtener stock actual
+            const response = await fetch(`/api/productos/${salida.producto_id}`);
+            const producto = await response.json();
+            
+            if (producto.stock_actual < salida.cantidad) {
+                erroresStock.push({
+                    producto: salida.producto.nombre,
+                    solicitado: salida.cantidad,
+                    disponible: producto.stock_actual
+                });
+            }
+        } catch (error) {
+            console.error('Error verificando stock:', error);
+        }
+    }
+    
+    if (erroresStock.length > 0) {
+        let mensaje = 'Stock insuficiente para los siguientes productos:\n\n';
+        erroresStock.forEach(e => {
+            mensaje += `• ${e.producto}: Solicitado ${e.solicitado}, Disponible ${e.disponible}\n`;
+        });
+        alert(mensaje);
+        return;
+    }
+    
+    const confirmar = confirm(`¿Registrar ${salidasPendientes.length} salida(s)?`);
+    
+    if (!confirmar) return;
+    
+    try {
+        const resultados = [];
+        
+        for (const salida of salidasPendientes) {
+            const movimiento = {
+                producto_id: salida.producto_id,
+                tipo: 'salida',
+                cantidad: salida.cantidad,
+                motivo: salida.motivo,
+                notas: salida.notas + (salida.cliente ? ` | Cliente: ${salida.cliente}` : ''),
+                usuario: 'admin'
+            };
+            
+            const response = await fetch('/api/movimientos/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(movimiento)
+            });
+            
+            const resultado = await response.json();
+            resultados.push({
+                producto: salida.producto.nombre,
+                success: response.ok,
+                message: response.ok ? 'Registrado' : resultado.detail
+            });
+        }
+        
+        const exitosas = resultados.filter(r => r.success).length;
+        const fallidas = resultados.filter(r => !r.success);
+        
+        let mensaje = `Se registraron ${exitosas} de ${resultados.length} salidas exitosamente.\n\n`;
+        
+        if (fallidas.length > 0) {
+            mensaje += 'Errores:\n';
+            fallidas.forEach(f => {
+                mensaje += `• ${f.producto}: ${f.message}\n`;
+            });
+        }
+        
+        alert(mensaje);
+        
+        if (exitosas > 0) {
+            salidasPendientes = [];
+            actualizarListaSalidas();
+            cargarHistorialSalidas();
+            mostrarExito('Salidas registradas exitosamente');
+        }
+        
+    } catch (error) {
+        alert(`Error al registrar salidas: ${error.message}`);
+    }
+}
+// Agrega esta nueva función para generar PDF
+async function generarPDF() {
+    if (salidasPendientes.length === 0) {
+        alert('No hay salidas para generar comprobante');
+        return;
+    }
+    
+    // Determinar si es un kit o salidas normales
+    const esKit = salidasPendientes.some(s => s.tipo === 'kit');
+    
+    if (esKit) {
+        generarPDFKit();
+    } else {
+        generarPDFNormal();
+    }
+}
+
+async function generarPDFNormal() {
+    // Pedir información adicional si no está completa
+    let destino = document.getElementById('cliente').value;
+    let razon = document.getElementById('motivo').value;
+    let observaciones = document.getElementById('notas').value;
+    
+    if (!destino) {
+        destino = prompt('Ingrese el destino o responsable de la salida:');
+        if (!destino) {
+            alert('Debe especificar un destino para generar el comprobante');
+            return;
+        }
+    }
+    
+    if (!razon) {
+        razon = 'Salida de inventario';
+    }
+    
+    // Preparar datos para la API
+    const productosData = salidasPendientes.map(salida => ({
+        producto_id: salida.producto_id,
+        cantidad: salida.cantidad
+    }));
+    
+    const data = {
+        productos: productosData,
+        destino: destino.trim(),
+        razon: razon,
+        observaciones: observaciones,
+        usuario: 'admin'
+    };
+    
+    try {
+        // Mostrar mensaje de procesamiento
+        mostrarProcesandoPDF();
+        
+        const response = await fetch('/api/movimientos/generar-pdf-salida', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error generando PDF');
+        }
+        
+        // Descargar PDF
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        const fecha = new Date().toISOString().split('T')[0];
+        link.download = `comprobante_salida_${destino.replace(/\s+/g, '_')}_${fecha}.pdf`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        // Ocultar mensaje de procesamiento
+        ocultarProcesandoPDF();
+        
+    } catch (error) {
+        ocultarProcesandoPDF();
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function generarPDFKit() {
+    const kits = salidasPendientes.filter(s => s.tipo === 'kit');
+    
+    if (kits.length === 0) {
+        alert('No hay kits para generar comprobante');
+        return;
+    }
+    
+    // Tomar el primer kit (podrías modificar para múltiples kits)
+    const kit = kits[0];
+    
+    // Preparar datos para la API
+    const productosData = kit.productos.map(producto => ({
+        producto_id: producto.producto_id,
+        cantidad: producto.cantidad_total
+    }));
+    
+    const data = {
+        productos: productosData,
+        destino: kit.cliente,
+        razon: kit.motivo,
+        observaciones: `Kit: ${kit.nombre} | ${kit.notas || ''}`,
+        usuario: 'admin'
+    };
+    
+    try {
+        mostrarProcesandoPDF();
+        
+        const response = await fetch('/api/movimientos/generar-pdf-salida', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Error generando PDF');
+        }
+        
+        // Descargar PDF
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprobante_kit_${kit.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        ocultarProcesandoPDF();
+        
+    } catch (error) {
+        ocultarProcesandoPDF();
+        alert(`Error: ${error.message}`);
+    }
+}
+
+function mostrarProcesandoPDF() {
+    const overlay = document.createElement('div');
+    overlay.id = 'pdf-processing-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center;">
+            <i class="fas fa-spinner fa-spin fa-2x" style="color: #1a3d7c; margin-bottom: 15px;"></i>
+            <p style="font-weight: bold; margin: 0;">Generando comprobante PDF...</p>
+            <p style="font-size: 0.9em; color: #666;">Por favor espere</p>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+function ocultarProcesandoPDF() {
+    const overlay = document.getElementById('pdf-processing-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+}
+// ===== SUBIR PDF FIRMADO =====
+// app/templates/salida.html - Reemplazar la función subirPDFSalida()
+
+async function subirPDFSalida(movimientoId) {
+    // Crear input de archivo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    
+    input.onchange = async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Validar tipo de archivo
+        if (file.type !== 'application/pdf') {
+            alert('❌ Solo se permiten archivos PDF');
+            return;
+        }
+        
+        // Validar tamaño (máximo 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('❌ El archivo es demasiado grande. Máximo 10MB');
+            return;
+        }
+        
+        // Mostrar confirmación
+        const confirmMessage = `¿Subir PDF firmado para esta salida?\n\n` +
+                              `Archivo: ${file.name}\n` +
+                              `Tamaño: ${(file.size / 1024 / 1024).toFixed(2)}MB\n\n` +
+                              `El PDF quedará asociado permanentemente a esta salida.`;
+        
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+        
+        // Mostrar loader
+        mostrarProcesandoPDF('Subiendo PDF firmado...');
+        
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch(`/api/movimientos/${movimientoId}/subir-pdf`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                mostrarExito('✅ PDF firmado subido exitosamente');
+                
+                // Recargar historial para mostrar el PDF
+                cargarHistorialSalidas();
+                
+                // Si hay un callback de éxito, ejecutarlo
+                if (window.onPDFSubido) {
+                    window.onPDFSubido(movimientoId, result.pdf_url);
+                }
+                
+            } else {
+                throw new Error(result.detail || 'Error al subir PDF');
+            }
+            
+        } catch (error) {
+            alert(`❌ Error: ${error.message}`);
+        } finally {
+            ocultarProcesandoPDF();
+        }
+    };
+    
+    input.click();
+}
+
+/**
+ * Ver PDF en nueva pestaña
+ */
+function verPDF(pdfUrl) {
+    if (!pdfUrl) {
+        alert('❌ URL del PDF no disponible');
+        return;
+    }
+    
+    // Asegurar URL completa
+    let url = pdfUrl;
+    if (!pdfUrl.startsWith('http')) {
+        url = pdfUrl.startsWith('/') ? pdfUrl : '/' + pdfUrl;
+    }
+    
+    window.open(url, '_blank');
+}
+
+function mostrarProcesandoPDF(mensaje = 'Procesando...') {
+    const overlay = document.createElement('div');
+    overlay.id = 'pdf-processing-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 400px;">
+            <i class="fas fa-file-pdf fa-3x" style="color: #dc2626; margin-bottom: 15px;"></i>
+            <p style="font-weight: bold; margin: 0;">${mensaje}</p>
+            <p style="font-size: 0.9em; color: #666;">Por favor espere...</p>
+            <div style="margin-top: 15px;">
+                <div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                    <div style="width: 60%; height: 100%; background: #2563eb; animation: loading 1.5s infinite;"></div>
+                </div>
+            </div>
+        </div>
+        <style>
+            @keyframes loading {
+                0% { width: 0%; }
+                50% { width: 100%; }
+                100% { width: 0%; }
+            }
+        </style>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+function ocultarProcesandoPDF() {
+    const overlay = document.getElementById('pdf-processing-overlay');
+    if (overlay) overlay.remove();
+}
+
+function verPDF(pdfUrl) {
+    window.open(pdfUrl, '_blank');
+}
+
+function actualizarBotonPDF(movimientoId, pdfUrl) {
+    // Buscar el botón en el historial y actualizarlo
+    const btn = document.querySelector(`.btn-pdf[data-movimiento-id="${movimientoId}"]`);
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-file-pdf"></i> Ver PDF';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-success');
+        btn.onclick = () => verPDF(pdfUrl);
+    }
+}
+// Historial
+// app/templates/salida.html - Reemplazar la función cargarHistorialSalidas()
+
+async function cargarHistorialSalidas() {
+    try {
+        const response = await fetch('/api/movimientos/?limit=20');
+        const movimientos = await response.json();
+        
+        const salidas = movimientos
+            .filter(m => m.tipo === 'salida')
+            .slice(0, 15); // Mostrar más entradas
+        
+        const historial = document.getElementById('historialSalidas');
+        
+        if (salidas.length === 0) {
+            historial.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-history fa-2x"></i>
+                    <p>No hay salidas registradas</p>
+                    <small>Registra tu primera salida usando el formulario</small>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        for (const movimiento of salidas) {
+            const fecha = new Date(movimiento.fecha_movimiento).toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // Extraer cliente/destino
+            let cliente = movimiento.cliente_destino || 'No especificado';
+            if (!cliente && movimiento.notas) {
+                const match = movimiento.notas.match(/Cliente:\s*([^|]+)/i);
+                if (match) cliente = match[1];
+            }
+            
+            // Obtener información del PDF si existe
+            let pdfInfo = null;
+            try {
+                const pdfResponse = await fetch(`/api/movimientos/${movimiento.id}/pdf-info`);
+                pdfInfo = await pdfResponse.json();
+            } catch (error) {
+                console.error('Error obteniendo info PDF:', error);
+            }
+            
+            const tienePDF = pdfInfo?.tiene_pdf || movimiento.pdf_firmado ? true : false;
+            const pdfUrl = movimiento.pdf_firmado || pdfInfo?.pdf_url;
+            
+            html += `
+                <div class="historial-item" data-movimiento-id="${movimiento.id}">
+                    <div class="historial-fecha">
+                        <i class="fas fa-calendar-alt"></i> ${fecha}
+                        ${tienePDF ? '<span class="pdf-badge"><i class="fas fa-check-circle"></i> PDF</span>' : ''}
+                    </div>
+                    
+                    <div class="historial-info">
+                        <div>
+                            <span class="historial-producto">
+                                ${movimiento.producto ? movimiento.producto.nombre : 'Producto ID: ' + movimiento.producto_id}
+                            </span>
+                            <small style="display: block; color: #6b7280; margin-top: 0.25rem;">
+                                <i class="fas fa-user"></i> ${cliente}
+                                ${movimiento.motivo ? `<br><i class="fas fa-tag"></i> ${movimiento.motivo}` : ''}
+                            </small>
+                        </div>
+                        <span class="historial-cantidad">-${movimiento.cantidad}</span>
+                    </div>
+                    
+                    <div class="historial-actions">
+                        <!-- BOTÓN PDF FIRMADO -->
+                        ${tienePDF ? `
+                            <button onclick="verPDF('${pdfUrl}')" 
+                                    class="btn-pdf btn-pdf-success"
+                                    title="Ver PDF firmado">
+                                <i class="fas fa-file-pdf"></i> Ver PDF
+                            </button>
+                        ` : `
+                            <button onclick="subirPDFSalida(${movimiento.id})" 
+                                    class="btn-pdf btn-pdf-warning"
+                                    title="Subir PDF firmado">
+                                <i class="fas fa-upload"></i> Subir PDF
+                            </button>
+                        `}
+                        
+                        <!-- BOTÓN COMPROBANTE -->
+                        <button onclick="generarComprobanteIndividual(${movimiento.id})" 
+                                class="btn-pdf btn-pdf-outline"
+                                title="Generar comprobante de salida">
+                            <i class="fas fa-print"></i> Comprobante
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        historial.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error cargando historial:', error);
+        document.getElementById('historialSalidas').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color: #dc2626;"></i>
+                <p>Error cargando historial</p>
+                <small>${error.message}</small>
+                <button onclick="cargarHistorialSalidas()" class="btn btn-primary btn-sm" style="margin-top: 1rem;">
+                    <i class="fas fa-redo"></i> Reintentar
+                </button>
+            </div>
+        `;
+    }
+}
+
+async function generarComprobanteIndividual(movimientoId) {
+    try {
+        mostrarProcesandoPDF('Generando comprobante...');
+        
+        const response = await fetch(`/api/movimientos/salida/${movimientoId}/pdf`);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error('Error generando comprobante');
+        }
+        
+        // Descargar PDF
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprobante_salida_${movimientoId}_${new Date().toISOString().split('T')[0]}.pdf`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        ocultarProcesandoPDF();
+        mostrarExito('✅ Comprobante generado exitosamente');
+        
+    } catch (error) {
+        ocultarProcesandoPDF();
+        console.error('Error:', error);
+        alert(`❌ Error: ${error.message}`);
+    }
+}
+// Funciones auxiliares (similares a entrada)
+function mostrarExito(mensaje) {
+    const alerta = document.createElement('div');
+    alerta.className = 'alert alert-success';
+    alerta.innerHTML = `<i class="fas fa-check-circle"></i> ${mensaje}`;
+    alerta.style.position = 'fixed';
+    alerta.style.top = '20px';
+    alerta.style.right = '20px';
+    alerta.style.zIndex = '1000';
+    
+    document.body.appendChild(alerta);
+    
+    setTimeout(() => {
+        alerta.remove();
+    }, 3000);
+}
+
+function crearModal(content) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="cerrarModal()"></div>
+        <div class="modal-content">
+            ${content}
+        </div>
+    `;
+    return modal;
+}
+
+function mostrarModal(modal) {
+    document.body.appendChild(modal);
+}
+
+function cerrarModal() {
+    const modal = document.querySelector('.modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function registrarMultiples() {
+    registrarSalidas();
+}
+// 🆕 AGREGAR TODAS ESTAS FUNCIONES NUEVAS AL FINAL DEL SCRIPT
+
+// Función para preguntar cantidad
+function preguntarCantidad(producto) {
+    const modalHTML = `
+        <div class="modal-cantidad">
+            <div class="modal-cantidad-header">
+                <h5><i class="fas fa-cube"></i> ${producto.nombre}</h5>
+                <p class="text-muted">${producto.codigo}</p>
+            </div>
+            
+            <div class="modal-cantidad-body">
+                <p><strong>Stock disponible:</strong> ${producto.stock_actual}</p>
+                
+                <div class="form-group">
+                    <label for="cantidad-${producto.id}">Cantidad a retirar:</label>
+                    <input type="number" 
+                           id="cantidad-${producto.id}" 
+                           class="form-control"
+                           min="1" 
+                           max="${producto.stock_actual}"
+                           value="1"
+                           autofocus>
+                </div>
+            </div>
+            
+            <div class="modal-cantidad-footer">
+                <button onclick="agregarProductoConCantidad(${producto.id})" 
+                        class="btn btn-success">
+                    <i class="fas fa-plus"></i> Agregar
+                </button>
+                <button onclick="continuarEscaneando()" 
+                        class="btn btn-outline-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('listaEscaneadosModal').innerHTML = modalHTML;
+    document.getElementById('btnContinuar').style.display = 'none';
+}
+
+// Función para agregar producto con cantidad
+async function agregarProductoConCantidad(productoId) {
+    const inputCantidad = document.getElementById(`cantidad-${productoId}`);
+    const cantidad = parseInt(inputCantidad.value) || 1;
+    
+    try {
+        const response = await fetch(`/api/productos/${productoId}`);
+        const producto = await response.json();
+        
+        if (cantidad > producto.stock_actual) {
+            mostrarErrorEnModal(`Stock insuficiente. Disponible: ${producto.stock_actual}`);
+            return;
+        }
+        
+        // Agregar a la lista
+        productosEscaneadosModal.set(producto.id, {
+            ...producto,
+            cantidad_retirar: cantidad
+        });
+        
+        actualizarContadoresModal();
+        actualizarListaEscaneadosModal();
+        
+        // Mostrar mensaje de éxito
+        mostrarExitoEnModal(`Agregado: ${producto.nombre} (${cantidad} unidades)`);
+        
+        // Mostrar botón para continuar
+        document.getElementById('btnContinuar').style.display = 'inline-block';
+        
+    } catch (error) {
+        mostrarErrorEnModal('Error al obtener producto');
+    }
+}
+// 🆕 AGREGAR ESTA FUNCIÓN NUEVA PARA REGISTRAR SALIDA MÚLTIPLE
+//async function registrarSalidaMultiple() {
+   //if (salidasPendientes.length === 0) {
+      //  alert('No hay productos para registrar');
+       // return;
+   // }
+    
+  //  const destino = prompt('Ingrese el destino o responsable de la salida:');
+   // if (!destino || destino.trim() === '') {
+   //     alert('Debe ingresar un destino o responsable');
+       // return;
+   // }
+    
+   // const razon = document.getElementById('motivo').value;
+  //  const observaciones = document.getElementById('notas').value;
+    
+    // Preparar datos para la API
+    //const productosData = salidasPendientes.map(salida => ({
+       // producto_id: salida.producto_id,
+       // cantidad: salida.cantidad
+   // }));
+    
+    //const data = {
+       // productos: productosData,
+       // destino: destino.trim(),
+        //razon: razon,
+        //observaciones: observaciones,
+      //  usuario: 'admin'
+    //};
+    
+    //try {
+        //const response = await fetch('/api/movimientos/salida-multiple', {
+            //method: 'POST',
+            //headers: {
+              //  'Content-Type': 'application/json'
+            //},
+          //  body: JSON.stringify(data)
+        //});
+        
+       // if (!response.ok) {
+           // const error = await response.json();
+          //  throw new Error(error.detail || 'Error al registrar salidas');
+       // }
+        
+       // const resultado = await response.json();
+        
+        // Mostrar éxito
+       // mostrarExito(`¡${resultado.length} productos registrados exitosamente!`);
+        
+        // Limpiar lista
+       // salidasPendientes = [];
+       // actualizarListaSalidas();
+        
+        // Recargar historial
+       // cargarHistorialSalidas();
+        
+    //} catch (error) {
+       // alert(`Error: ${error.message}`);
+    //}
+//}
+
+//* 🆕 MODIFICAR la función registrarSalidas para usar la nueva función
+async function registrarSalidas() {
+    if (salidasPendientes.length === 0) return;
+    
+    // Separar kits y salidas normales
+    const kits = salidasPendientes.filter(s => s.tipo === 'kit');
+    const salidasNormales = salidasPendientes.filter(s => !s.tipo || s.tipo !== 'kit');
+    
+    let confirmMessage = `¿Registrar ${salidasPendientes.length} salida(s)?\n`;
+    
+    if (kits.length > 0) {
+        const totalUnidadesKits = kits.reduce((sum, kit) => {
+            return sum + kit.productos.reduce((s, p) => s + p.cantidad_total, 0);
+        }, 0);
+        confirmMessage += `• ${kits.length} kit(s) - ${totalUnidadesKits} unidades totales\n`;
+    }
+    
+    if (salidasNormales.length > 0) {
+        const totalUnidades = salidasNormales.reduce((sum, s) => sum + s.cantidad, 0);
+        confirmMessage += `• ${salidasNormales.length} salida(s) normal(es) - ${totalUnidades} unidades\n`;
+    }
+    
+    if (!confirm(confirmMessage)) return;
+    
+    try {
+        const resultados = [];
+        
+        // 1. Registrar salidas normales
+        for (const salida of salidasNormales) {
+            const movimiento = {
+                producto_id: salida.producto_id,
+                tipo: 'salida',
+                cantidad: salida.cantidad,
+                motivo: salida.motivo,
+                notas: salida.notas + (salida.cliente ? ` | Cliente: ${salida.cliente}` : ''),
+                cliente_destino: salida.cliente,
+                usuario: 'admin'
+            };
+            
+            const response = await fetch('/api/movimientos/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(movimiento)
+            });
+            
+            const resultado = await response.json();
+            resultados.push({
+                tipo: 'normal',
+                producto: salida.producto.nombre,
+                success: response.ok,
+                message: response.ok ? 'Registrado' : resultado.detail
+            });
+        }
+        
+        // 2. Registrar kits (cada producto del kit como salida individual)
+        for (const kit of kits) {
+            for (const producto of kit.productos) {
+                const movimiento = {
+                    producto_id: producto.producto_id,
+                    tipo: 'salida',
+                    cantidad: producto.cantidad_total,
+                    motivo: kit.motivo,
+                    notas: `Kit: ${kit.nombre} | Beneficiario: ${kit.cliente} | ${producto.cantidad_por_kit} × ${kit.cantidad_kits} kits = ${producto.cantidad_total} unidades | ${kit.notas || ''}`,
+                    cliente_destino: kit.cliente,
+                    usuario: 'admin'
+                };
+                
+                const response = await fetch('/api/movimientos/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(movimiento)
+                });
+                
+                const resultado = await response.json();
+                resultados.push({
+                    tipo: 'kit',
+                    kit: kit.nombre,
+                    producto: producto.producto_nombre,
+                    success: response.ok,
+                    message: response.ok ? 'Registrado' : resultado.detail
+                });
+            }
+        }
+        
+        // Mostrar resultados
+        const exitosas = resultados.filter(r => r.success).length;
+        const fallidas = resultados.filter(r => !r.success);
+        
+        let mensaje = `Se registraron ${exitosas} de ${resultados.length} operaciones exitosamente.\n\n`;
+        
+        if (fallidas.length > 0) {
+            mensaje += 'Errores:\n';
+            fallidas.forEach(f => {
+                if (f.tipo === 'kit') {
+                    mensaje += `• Kit "${f.kit}" - ${f.producto}: ${f.message}\n`;
+                } else {
+                    mensaje += `• ${f.producto}: ${f.message}\n`;
+                }
+            });
+        }
+        
+        alert(mensaje);
+        
+        if (exitosas > 0) {
+            salidasPendientes = [];
+            productosSeleccionados = [];
+            actualizarListaSalidas();
+            cargarHistorialSalidas();
+            mostrarExito('Salidas registradas exitosamente');
+        }
+        
+    } catch (error) {
+        alert(`Error al registrar salidas: ${error.message}`);
+    }
+}
+
+// Eliminar producto de la lista
+function eliminarProductoEscaneado(productoId) {
+    if (confirm('¿Eliminar este producto de la lista?')) {
+        productosEscaneadosModal.delete(productoId);
+        actualizarContadoresModal();
+        actualizarListaEscaneadosModal();
+    }
+}
+
+// Actualizar contadores
+function actualizarContadoresModal() {
+    const totalProductos = productosEscaneadosModal.size;
+    const totalUnidades = Array.from(productosEscaneadosModal.values())
+        .reduce((sum, p) => sum + p.cantidad_retirar, 0);
+    
+    document.getElementById('contadorEscaneados').textContent = totalProductos;
+    document.getElementById('contadorProductos').textContent = totalProductos;
+    document.getElementById('btnFinalizarEscaneo').disabled = totalProductos === 0;
+}
+
+// Continuar escaneando
+function continuarEscaneando() {
+    // Limpiar la vista actual
+    document.getElementById('listaEscaneadosModal').innerHTML = `
+        <div class="empty-state-small">
+            <i class="fas fa-qrcode fa-2x"></i>
+            <p>Escanea el siguiente producto</p>
+        </div>
+    `;
+    
+    document.getElementById('btnContinuar').style.display = 'none';
+    
+    // Reactivar el escáner si está detenido
+    if (scanner) {
+        scanner.start();
+    }
+}
+
+// 🆕 MODIFICAR la función finalizarEscaneo (debe estar al final del script)
+function finalizarEscaneo() {
+    if (productosEscaneadosModal.size === 0) {
+        alert('No hay productos escaneados');
+        return;
+    }
+    
+    // Agregar cada producto a la lista principal de salidas
+    for (const [id, producto] of productosEscaneadosModal) {
+        const cantidad = producto.cantidad_retirar;
+        const motivo = document.getElementById('motivo').value;
+        const cliente = document.getElementById('cliente').value;
+        const notas = document.getElementById('notas').value;
+        const fecha = document.getElementById('fecha').value;
+        
+        // Crear salida para lista principal
+        const salida = {
+            id: Date.now() + Math.random(), // ID temporal único
+            producto: producto,
+            producto_id: producto.id,
+            cantidad: cantidad,
+            motivo: motivo,
+            cliente: cliente,
+            notas: notas,
+            fecha: fecha || new Date().toISOString(),
+            stock_restante: producto.stock_actual - cantidad
+        };
+        
+        // Agregar a lista principal (si no existe ya)
+        const existe = salidasPendientes.some(s => s.producto_id === producto.id);
+        if (!existe) {
+            salidasPendientes.push(salida);
+        }
+    }
+    
+    // Actualizar interfaz principal
+    actualizarListaSalidas();
+    
+    // Cerrar modal y limpiar
+    cerrarModalEscaneo();
+    productosEscaneadosModal.clear();
+    
+    // Mostrar mensaje
+    const totalProductos = Array.from(productosEscaneadosModal.entries()).length;
+    mostrarExito(`${totalProductos} productos agregados a la lista`);
+}
+    
+    // Actualizar interfaz principal
+    actualizarListaSalidas();
+    
+    // Cerrar modal y limpiar
+    cerrarModalEscaneo();
+    productosEscaneadosModal.clear();
+    
+    // Mostrar mensaje
+    mostrarExito(`${productosEscaneadosModal.size} productos agregados a la lista`);
+
+// Función para mostrar error en modal
+function mostrarErrorEnModal(mensaje) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-danger alert-dismissible';
+    errorDiv.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i> ${mensaje}
+        <button type="button" class="btn-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    const modalBody = document.querySelector('.modal-body');
+    modalBody.insertBefore(errorDiv, modalBody.firstChild);
+    
+    setTimeout(() => {
+        if (errorDiv.parentElement) {
+            errorDiv.remove();
+        }
+    }, 5000);
+}
+
+// Función para mostrar éxito en modal
+function mostrarExitoEnModal(mensaje) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'alert alert-success alert-dismissible';
+    successDiv.innerHTML = `
+        <i class="fas fa-check-circle"></i> ${mensaje}
+        <button type="button" class="btn-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    const modalBody = document.querySelector('.modal-body');
+    modalBody.insertBefore(successDiv, modalBody.firstChild);
+    
+    setTimeout(() => {
+        if (successDiv.parentElement) {
+            successDiv.remove();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

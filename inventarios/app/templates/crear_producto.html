@@ -1,0 +1,802 @@
+{% extends "base.html" %}
+
+{% block title %}Crear Producto - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="crear-producto-page">
+    <div class="page-header">
+        <h1><i class="fas fa-plus-circle"></i> Crear Nuevo Producto</h1>
+        <p class="subtitle">Agrega un nuevo producto al inventario</p>
+        
+        <div class="header-actions">
+            <a href="/productos" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Productos
+            </a>
+            <a href="/escanear" class="btn btn-success">
+                <i class="fas fa-camera"></i> Escanear Código
+            </a>
+        </div>
+    </div>
+    
+    <div class="crear-form-container">
+        <form id="formCrearProducto" class="crear-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="codigo">
+                        <i class="fas fa-barcode"></i> Código del Producto *
+                    </label>
+                    <div class="input-with-button">
+                        <input type="text" id="codigo" name="codigo" 
+                               placeholder="Ej: PROD-20240115-ABC123"
+                               required>
+                        <button type="button" onclick="generarCodigo()" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i> Generar
+                        </button>
+                    </div>
+                    <small class="help-text">
+                        Si dejas este campo vacío, se generará un código automáticamente.
+                        Formato recomendado: PREFIJO-YYYYMMDD-XXXXXX
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="nombre">
+                        <i class="fas fa-tag"></i> Nombre del Producto *
+                    </label>
+                    <input type="text" id="nombre" name="nombre" 
+                           placeholder="Ej: Laptop HP EliteBook 840 G8"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="descripcion">
+                    <i class="fas fa-align-left"></i> Descripción
+                </label>
+                <textarea id="descripcion" name="descripcion" rows="3"
+                          placeholder="Describe las características del producto..."></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="categoria">
+                        <i class="fas fa-tags"></i> Categoría
+                    </label>
+                    <select id="categoria" name="categoria" class="form-select">
+                        <option value="">Selecciona una categoría</option>
+                        <option value="Electrónica">Electrónica</option>
+                        <option value="Ropa">Ropa</option>
+                        <option value="Alimentos">Alimentos</option>
+                        <option value="Herramientas">Herramientas</option>
+                        <option value="Oficina">Oficina</option>
+                        <option value="Hogar">Hogar</option>
+                        <option value="Deportes">Deportes</option>
+                        <option value="Juguetes">Juguetes</option>
+                        <option value="Libros">Libros</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+                
+            </div>
+                <div class="form-group">
+                    <label for="stock_minimo">
+                        <i class="fas fa-exclamation-triangle"></i> Stock Mínimo *
+                    </label>
+                    <input type="number" id="stock_minimo" name="stock_minimo" 
+                           min="0" value="5" required>
+                    <small class="help-text">
+                        El sistema te alertará cuando el stock esté por debajo de este valor.
+                    </small>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3><i class="fas fa-qrcode"></i> Códigos de Identificación</h3>
+                <p class="section-description">
+                    Opcionalmente, puedes subir imágenes de códigos existentes o generar nuevos.
+                </p>
+                
+                <div class="codigos-options">
+                    <div class="option-card" onclick="mostrarSubirCodigo()">
+                        <div class="option-icon">
+                            <i class="fas fa-upload fa-2x"></i>
+                        </div>
+                        <h4>Subir Código Existente</h4>
+                        <p>Sube una imagen de código QR o de barras</p>
+                    </div>
+                    
+                    <div class="option-card" onclick="generarCodigosNuevos()">
+                        <div class="option-icon">
+                            <i class="fas fa-magic fa-2x"></i>
+                        </div>
+                        <h4>Generar Nuevos Códigos</h4>
+                        <p>Crea códigos QR y de barras automáticamente</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-actions">
+                <button type="button" onclick="window.history.back()" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Guardar Producto
+                </button>
+                <button type="button" onclick="guardarYContinuar()" class="btn btn-success">
+                    <i class="fas fa-plus-circle"></i> Guardar y Crear Otro
+                </button>
+            </div>
+        </form>
+        
+        <div class="form-preview">
+            <h3><i class="fas fa-eye"></i> Vista Previa</h3>
+            <div class="preview-card" id="previewCard">
+                <div class="preview-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>La vista previa se actualizará automáticamente...</p>
+                </div>
+            </div>
+            
+            <div class="preview-actions">
+                <button onclick="generarVistaPrevia()" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Actualizar Vista Previa
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.crear-producto-page {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.crear-form-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 1024px) {
+    .crear-form-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.crear-form {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--dark);
+}
+
+.form-group label i {
+    color: var(--primary);
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--gray);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.input-with-button {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.input-with-button input {
+    flex: 1;
+}
+
+.input-with-symbol {
+    position: relative;
+}
+
+.input-symbol {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--secondary);
+    font-weight: 600;
+}
+
+.input-with-symbol input {
+    padding-left: 2.5rem;
+}
+
+.help-text {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--secondary);
+    font-size: 0.85rem;
+}
+
+.form-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--light);
+    border-radius: 1rem;
+}
+
+.form-section h3 {
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-description {
+    color: var(--secondary);
+    margin-bottom: 1.5rem;
+}
+
+.codigos-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.option-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.option-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.option-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: var(--primary);
+}
+
+.option-card h4 {
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+}
+
+.option-card p {
+    color: var(--secondary);
+    font-size: 0.9rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray);
+    flex-wrap: wrap;
+}
+
+.form-actions button {
+    flex: 1;
+    min-width: 150px;
+}
+
+.form-preview {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 2rem;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+}
+
+.form-preview h3 {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-card {
+    background: var(--light);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-loading {
+    text-align: center;
+    color: var(--secondary);
+}
+
+.preview-loading i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.preview-content {
+    width: 100%;
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.preview-codigo {
+    background: var(--gray);
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.preview-nombre {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+}
+
+.preview-categoria {
+    color: var(--primary);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.preview-stat {
+    text-align: center;
+}
+
+.preview-stat-label {
+    font-size: 0.8rem;
+    color: var(--secondary);
+    margin-bottom: 0.25rem;
+}
+
+.preview-stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark);
+}
+
+.preview-actions {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.alert {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.alert-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.hidden {
+    display: none;
+}
+</style>
+
+<script>
+// Generar código automático
+function generarCodigo() {
+    const fecha = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    document.getElementById('codigo').value = `PROD-${fecha}-${random}`;
+    generarVistaPrevia();
+}
+
+// Generar vista previa del producto
+function generarVistaPrevia() {
+    const codigo = document.getElementById('codigo').value || 'PROD-XXXXXX-XXXXXX';
+    const nombre = document.getElementById('nombre').value || 'Nombre del producto';
+    const descripcion = document.getElementById('descripcion').value || 'Descripción no proporcionada';
+    const categoria = document.getElementById('categoria').value || 'Sin categoría';
+    const stockMinimo = parseInt(document.getElementById('stock_minimo').value) || 0;
+    const ubicacion = document.getElementById('ubicacion').value || 'Sin ubicación';
+    
+    const previewCard = document.getElementById('previewCard');
+    previewCard.innerHTML = `
+        <div class="preview-content">
+            <div class="preview-header">
+                <span class="preview-codigo">${codigo}</span>
+                <span class="badge badge-info">Nuevo</span>
+            </div>
+            
+            <h3 class="preview-nombre">${nombre}</h3>
+            
+            <div class="preview-categoria">
+                <i class="fas fa-tag"></i>
+                ${categoria}
+            </div>
+            
+            <p class="preview-descripcion">${descripcion}</p>
+            
+            <div class="preview-stats">
+                <div class="preview-stat">
+                    <div class="preview-stat-label">Stock Mínimo</div>
+                    <div class="preview-stat-value">${stockMinimo}</div>
+                </div>
+                <div class="preview-stat">
+                    <div class="preview-stat-label">Ubicación</div>
+                    <div class="preview-stat-value">${ubicacion}</div>
+                </div>
+                <div class="preview-stat">
+                    <div class="preview-stat-label">Stock Inicial</div>
+                    <div class="preview-stat-value">0</div>
+                </div>
+            </div>
+            
+            <div class="preview-info">
+                <p><i class="fas fa-info-circle"></i> Este producto comenzará con 0 unidades en stock.</p>
+                <p><i class="fas fa-bell"></i> Se te alertará cuando el stock baje de ${stockMinimo} unidades.</p>
+            </div>
+        </div>
+    `;
+}
+
+// Mostrar modal para subir código
+function mostrarSubirCodigo() {
+    const modal = crearModal(`
+        <h3><i class="fas fa-upload"></i> Subir Código Existente</h3>
+        <p>Selecciona una imagen de código QR o de barras:</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <i class="fas fa-cloud-upload-alt fa-3x"></i>
+            <p>Arrastra y suelta una imagen aquí</p>
+            <p class="upload-sub">o haz clic para seleccionar</p>
+            <input type="file" id="codigoFile" accept="image/*" class="hidden">
+        </div>
+        
+        <div class="modal-buttons">
+            <button onclick="procesarCodigoSubido()" class="btn btn-primary" id="btnProcesar" disabled>
+                <i class="fas fa-cog"></i> Procesar Código
+            </button>
+            <button onclick="cerrarModal()" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    `);
+    
+    mostrarModal(modal);
+    
+    // Configurar drag & drop
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('codigoFile');
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.backgroundColor = 'var(--light)';
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.backgroundColor = '';
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.backgroundColor = '';
+        
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            mostrarPreviaArchivo(e.dataTransfer.files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            mostrarPreviaArchivo(e.target.files[0]);
+        }
+    });
+}
+
+function mostrarPreviaArchivo(file) {
+    if (!file.type.startsWith('image/')) {
+        alert('Por favor selecciona una imagen válida');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.innerHTML = `
+            <img src="${e.target.result}" alt="Previa" style="max-width: 200px; max-height: 200px;">
+            <p>${file.name}</p>
+            <button onclick="seleccionarOtro()" class="btn btn-sm btn-secondary">
+                <i class="fas fa-redo"></i> Seleccionar otro
+            </button>
+        `;
+        
+        document.getElementById('btnProcesar').disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function seleccionarOtro() {
+    document.getElementById('codigoFile').click();
+}
+
+function procesarCodigoSubido() {
+    alert('Esta funcionalidad requeriría un servicio de reconocimiento de códigos. Por ahora, puedes ingresar el código manualmente.');
+    cerrarModal();
+}
+
+// Generar nuevos códigos
+function generarCodigosNuevos() {
+    const modal = crearModal(`
+        <h3><i class="fas fa-magic"></i> Generar Nuevos Códigos</h3>
+        <p>Se generarán códigos QR y de barras para este producto.</p>
+        
+        <div class="codigos-preview">
+            <div class="codigo-item">
+                <h4><i class="fas fa-qrcode"></i> Código QR</h4>
+                <div class="codigo-placeholder" id="qrPlaceholder">
+                    <i class="fas fa-qrcode fa-3x"></i>
+                    <p>QR se generará al guardar</p>
+                </div>
+            </div>
+            
+            <div class="codigo-item">
+                <h4><i class="fas fa-barcode"></i> Código de Barras</h4>
+                <div class="codigo-placeholder" id="barcodePlaceholder">
+                    <i class="fas fa-barcode fa-3x"></i>
+                    <p>Barras se generarán al guardar</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-buttons">
+            <button onclick="confirmarGenerarCodigos()" class="btn btn-success">
+                <i class="fas fa-check"></i> Confirmar
+            </button>
+            <button onclick="cerrarModal()" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+        </div>
+    `);
+    
+    mostrarModal(modal);
+}
+
+function confirmarGenerarCodigos() {
+    mostrarExito('Los códigos se generarán automáticamente al guardar el producto.');
+    cerrarModal();
+}
+
+// Enviar formulario
+document.getElementById('formCrearProducto').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        codigo: document.getElementById('codigo').value || null,
+        nombre: document.getElementById('nombre').value,
+        descripcion: document.getElementById('descripcion').value || null,
+        categoria: document.getElementById('categoria').value || null,
+        stock_minimo: parseInt(document.getElementById('stock_minimo').value),
+    };
+    
+    try {
+        const response = await fetch('/api/productos/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarExito('¡Producto creado exitosamente!');
+            setTimeout(() => {
+                window.location.href = `/productos`; 
+            }, 1500);
+        } else {
+            throw new Error(result.detail || 'Error creando producto');
+        }
+    } catch (error) {
+        mostrarError('Error: ' + error.message);
+    }
+});
+
+// Guardar y continuar
+function guardarYContinuar() {
+    const form = document.getElementById('formCrearProducto');
+    const formData = {
+        codigo: document.getElementById('codigo').value || null,
+        nombre: document.getElementById('nombre').value,
+        descripcion: document.getElementById('descripcion').value || null,
+        categoria: document.getElementById('categoria').value || null,
+        stock_minimo: parseInt(document.getElementById('stock_minimo').value),
+    };
+    
+    fetch('/api/productos/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.id) {
+            mostrarExito('Producto creado. Puedes crear otro...');
+            
+            // Limpiar formulario (excepto algunos campos)
+            document.getElementById('nombre').value = '';
+            document.getElementById('descripcion').value = '';
+            document.getElementById('categoria').value = '';
+            document.getElementById('ubicacion').value = '';
+            
+            // Generar nuevo código automático
+            generarCodigo();
+            
+            // Actualizar vista previa
+            generarVistaPrevia();
+            
+            // Enfocar en nombre
+            document.getElementById('nombre').focus();
+        } else {
+            throw new Error(result.detail || 'Error creando producto');
+        }
+    })
+    .catch(error => {
+        mostrarError('Error: ' + error.message);
+    });
+}
+
+// Funciones auxiliares (de app.js)
+function crearModal(content) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="cerrarModal()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="cerrarModal()">
+                <i class="fas fa-times"></i>
+            </button>
+            ${content}
+        </div>
+    `;
+    return modal;
+}
+
+function mostrarModal(modal) {
+    document.body.appendChild(modal);
+    setTimeout(() => {
+        modal.classList.add('show');
+    }, 10);
+}
+
+function cerrarModal() {
+    const modal = document.querySelector('.modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+function mostrarExito(mensaje) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success';
+    alert.innerHTML = `<i class="fas fa-check-circle"></i> ${mensaje}`;
+    document.querySelector('.crear-form').prepend(alert);
+    
+    setTimeout(() => alert.remove(), 5000);
+}
+
+function mostrarError(mensaje) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-error';
+    alert.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${mensaje}`;
+    document.querySelector('.crear-form').prepend(alert);
+    
+    setTimeout(() => alert.remove(), 5000);
+}
+
+// Inicializar vista previa
+document.addEventListener('DOMContentLoaded', function() {
+    generarVistaPrevia();
+    
+    // Actualizar vista previa al cambiar campos
+    const campos = ['codigo', 'nombre', 'descripcion', 'categoria', 'stock_minimo', 'ubicacion'];
+    campos.forEach(campo => {
+        document.getElementById(campo).addEventListener('input', generarVistaPrevia);
+    });
+    
+    // Si hay parámetros en la URL (para crear desde escaneo)
+    const urlParams = new URLSearchParams(window.location.search);
+    const codigoEscaneado = urlParams.get('codigo');
+    if (codigoEscaneado) {
+        document.getElementById('codigo').value = codigoEscaneado;
+        generarVistaPrevia();
+    }
+});
+</script>
+{% endblock %}

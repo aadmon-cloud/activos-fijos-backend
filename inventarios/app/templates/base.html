@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema de Inventario{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <i class="fas fa-boxes"></i>
+                <span>Inventario FIMLM</span>
+            </a>
+            
+            <button class="menu-toggle" onclick="toggleMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="nav-menu" id="navMenu">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-home"></i> Inicio
+                </a>
+                <a href="/productos" class="nav-link">
+                    <i class="fas fa-box"></i> Productos
+                </a>
+                <a href="/escanear" class="nav-link highlight">
+                    <i class="fas fa-camera"></i> Escanear
+                </a>
+                <a href="/entrada" class="nav-link">
+                    <i class="fas fa-arrow-down"></i> Entrada
+                </a>
+                <a href="/salida" class="nav-link">
+                    <i class="fas fa-arrow-up"></i> Salida
+                </a>
+                <a href="/movimientos" class="nav-link">
+                    <i class="fas fa-history"></i> Movimientos
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <p>Sistema de Inventario FIMLM v1.0 &copy; 2026</p>
+            <p class="footer-links">
+                <a href="/api/docs" target="_blank">API Docs</a> |
+                <a href="/api/redoc" target="_blank">ReDoc</a> |
+                <span id="status-indicator" class="status-online">
+                    <i class="fas fa-circle"></i> Online
+                </span>
+            </p>
+        </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+    <script>
+        function toggleMenu() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.toggle('show');
+        }
+        
+        // Verificar estado del servidor
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('/api/test');
+                if (response.ok) {
+                    document.getElementById('status-indicator').className = 'status-online';
+                }
+            } catch (error) {
+                document.getElementById('status-indicator').className = 'status-offline';
+                document.getElementById('status-indicator').innerHTML = '<i class="fas fa-circle"></i> Offline';
+            }
+        }
+        
+        // Verificar cada 30 segundos
+        setInterval(checkServerStatus, 30000);
+        checkServerStatus();
+    </script>
+</body>
+</html>

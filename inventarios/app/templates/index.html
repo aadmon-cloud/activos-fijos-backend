@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - Inventario FIMLM{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="hero-section">
+        <h1><i class="fas fa-qrcode"></i> Sistema de Inventario con Códigos QR</h1>
+        <p class="subtitle">Gestiona tu inventario escaneando códigos con la cámara de tu celular</p>
+        
+        <div class="action-buttons">
+            <a href="/escanear" class="btn btn-primary btn-lg">
+                <i class="fas fa-camera"></i> Comenzar a Escanear
+            </a>
+            <a href="/productos" class="btn btn-secondary btn-lg">
+                <i class="fas fa-box"></i> Ver Productos
+            </a>
+        </div>
+    </div>
+    
+    <div class="stats-cards" id="statsContainer">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="totalProducts">0</h3>
+                <p>Productos Totales</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="lowStock">0</h3>
+                <p>Bajo Stock</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-camera fa-3x"></i>
+            </div>
+            <h3>Escaneo por Cámara</h3>
+            <p>Usa la cámara de tu celular para escanear códigos QR y de barras al instante.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-qrcode fa-3x"></i>
+            </div>
+            <h3>Códigos Únicos</h3>
+            <p>Cada producto tiene un código QR único generado automáticamente.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-exchange-alt fa-3x"></i>
+            </div>
+            <h3>Movimientos en Tiempo Real</h3>
+            <p>Registra entradas y salidas de productos con un solo escaneo.</p>
+        </div>
+        
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-chart-bar fa-3x"></i>
+            </div>
+            <h3>Reportes Automáticos</h3>
+            <p>Genera reportes de inventario y seguimiento de movimientos.</p>
+        </div>
+    </div>
+    
+    <div class="quick-actions">
+        <h2><i class="fas fa-bolt"></i> Acciones Rápidas</h2>
+        <div class="actions-grid">
+            <a href="/entrada" class="action-btn">
+                <i class="fas fa-arrow-down"></i>
+                <span>Registrar Entrada</span>
+            </a>
+            
+            <a href="/salida" class="action-btn">
+                <i class="fas fa-arrow-up"></i>
+                <span>Registrar Salida</span>
+            </a>
+            
+            <a href="/productos/crear" class="action-btn">
+                <i class="fas fa-plus-circle"></i>
+                <span>Nuevo Producto</span>
+            </a>
+            
+            <a href="/movimientos" class="action-btn">
+                <i class="fas fa-history"></i>
+                <span>Ver Movimientos</span>
+            </a>
+        </div>
+    </div>
+    
+    <div class="recent-activity" id="recentActivity">
+        <h2><i class="fas fa-history"></i> Actividad Reciente</h2>
+        <div class="activity-list" id="activityList">
+            <div class="empty-state">
+                <i class="fas fa-info-circle"></i>
+                <p>No hay actividad reciente. ¡Comienza a escanear!</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Cargar estadísticas del dashboard
+    async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/inventario/dashboard/');  // ✅ CON SLASH AL FINAL
+        const data = await response.json();
+        console.log('Dashboard data:', data);  // 👈 AGREGAR ESTO PARA DEBUG
+        
+        // Actualizar estadísticas
+        document.getElementById('totalProducts').textContent = data.total_productos || 0;
+        document.getElementById('lowStock').textContent = data.productos_bajo_stock || 0;
+            
+            // Actualizar actividad reciente
+            const activityList = document.getElementById('activityList');
+            
+            if (data.ultimos_movimientos && data.ultimos_movimientos.length > 0) {
+                let html = '';
+                data.ultimos_movimientos.forEach(movimiento => {
+                    const tipoClass = movimiento.tipo === 'entrada' ? 'success' : 'warning';
+                    const tipoIcon = movimiento.tipo === 'entrada' ? 'arrow-down' : 'arrow-up';
+                    const fecha = new Date(movimiento.fecha_movimiento).toLocaleString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    const productoNombre = movimiento.producto ? movimiento.producto.nombre : 'Producto eliminado';
+                    const clienteDestino = movimiento.cliente_destino ? ` • ${movimiento.cliente_destino}` : '';
+                    
+                    html += `
+                        <div class="activity-item">
+                            <div class="activity-icon ${tipoClass}">
+                                <i class="fas fa-${tipoIcon}"></i>
+                            </div>
+                            <div class="activity-content">
+                                <h4>
+                                    ${movimiento.tipo === 'entrada' ? '➕ Entrada' : '➖ Salida'} 
+                                    - ${productoNombre}
+                                    <small>${movimiento.cantidad} unidades</small>
+                                </h4>
+                                <p>
+                                    ${movimiento.motivo || 'Sin motivo'}${clienteDestino} • ${fecha}
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                });
+                activityList.innerHTML = html;
+            } else {
+                activityList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-info-circle"></i>
+                        <p>No hay movimientos recientes</p>
+                        <small>Registra una entrada o salida para ver actividad</small>
+                    </div>
+                `;
+            }
+            
+        } catch (error) {
+            console.error('Error cargando estadísticas:', error);
+            document.getElementById('totalProducts').textContent = '0';
+            document.getElementById('lowStock').textContent = '0';
+        }
+    }
+    
+    // Cargar datos al iniciar
+    document.addEventListener('DOMContentLoaded', loadDashboardStats);
+    
+    // Actualizar cada 30 segundos
+    setInterval(loadDashboardStats, 30000);
+</script>
+{% endblock %}
