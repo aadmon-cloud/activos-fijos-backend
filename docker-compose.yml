@@ -1,0 +1,11 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: fastapi-cloud-run-mongo-local
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_local_data:/data/db
+
+volumes:
+  mongo_local_data:
