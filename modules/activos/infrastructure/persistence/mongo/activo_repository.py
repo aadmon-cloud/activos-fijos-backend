@@ -1,7 +1,6 @@
-from decimal import Decimal
+import re
 
 from bson import ObjectId
-from bson.decimal128 import Decimal128
 
 from modules.activos.application.ports.activo_repository import ActivoRepositoryPort
 from modules.activos.domain.entities import Activo, Complemento, EstadoCicloVida, TipoActivo
@@ -57,8 +56,6 @@ def _entidad_a_doc(activo: Activo) -> dict:
         "estado_ciclo_vida": activo.estado_ciclo_vida.value,
         "sede_id": ObjectId(activo.sede_id),
         "lugar_id": ObjectId(activo.lugar_id),
-        "valor": Decimal128(activo.valor),
-        "fecha_adquisicion": activo.fecha_adquisicion,
         "complementos": [_complemento_a_doc(c) for c in activo.complementos],
         "observaciones": activo.observaciones,
         "foto_url": activo.foto_url,
@@ -85,10 +82,6 @@ def _doc_a_entidad(doc: dict) -> Activo:
         estado_ciclo_vida=EstadoCicloVida(doc["estado_ciclo_vida"]),
         sede_id=str(doc["sede_id"]),
         lugar_id=str(doc["lugar_id"]),
-        valor=doc["valor"].to_decimal() if isinstance(doc["valor"], Decimal128) else Decimal(
-            str(doc["valor"])
-        ),
-        fecha_adquisicion=doc["fecha_adquisicion"],
         complementos=[_doc_a_complemento(c) for c in doc.get("complementos", [])],
         observaciones=doc.get("observaciones"),
         foto_url=doc.get("foto_url"),
@@ -96,6 +89,46 @@ def _doc_a_entidad(doc: dict) -> Activo:
         creado_por=_doc_a_audit(doc["creado_por"]),
         actualizado_por=_doc_a_audit(doc.get("actualizado_por")),
     )
+
+
+def _construir_filtro(
+    area_id: str | None,
+    categoria_id: str | None,
+    responsable_id: str | None,
+    condicion_id: str | None,
+    sede_id: str | None,
+    lugar_id: str | None,
+    estado_ciclo_vida: EstadoCicloVida | None,
+    busqueda: str | None,
+) -> dict:
+    filtro: dict = {}
+    if area_id:
+        filtro["area_id"] = ObjectId(area_id)
+    if categoria_id:
+        filtro["categoria_id"] = ObjectId(categoria_id)
+    if responsable_id:
+        filtro["responsable_id"] = ObjectId(responsable_id)
+    if condicion_id:
+        filtro["condicion_id"] = ObjectId(condicion_id)
+    if sede_id:
+        filtro["sede_id"] = ObjectId(sede_id)
+    if lugar_id:
+        filtro["lugar_id"] = ObjectId(lugar_id)
+    if estado_ciclo_vida:
+        filtro["estado_ciclo_vida"] = estado_ciclo_vida.value
+    if busqueda:
+        # El texto del usuario se escapa: sin esto seria una expresion regular arbitraria
+        # (inyeccion y ReDoS).
+        patron = {"$regex": re.escape(busqueda), "$options": "i"}
+        filtro["$or"] = [
+            {"nombre": patron},
+            {"numero_inventario": patron},
+            {"marca": patron},
+            {"modelo": patron},
+            {"serie": patron},
+        ]
+
+    return filtro
 
 
 async def crear_indices() -> None:
@@ -154,30 +187,16 @@ class MongoActivoRepository(ActivoRepositoryPort):
         skip: int,
         limit: int,
     ) -> list[Activo]:
-        filtro: dict = {}
-        if area_id:
-            filtro["area_id"] = ObjectId(area_id)
-        if categoria_id:
-            filtro["categoria_id"] = ObjectId(categoria_id)
-        if responsable_id:
-            filtro["responsable_id"] = ObjectId(responsable_id)
-        if condicion_id:
-            filtro["condicion_id"] = ObjectId(condicion_id)
-        if sede_id:
-            filtro["sede_id"] = ObjectId(sede_id)
-        if lugar_id:
-            filtro["lugar_id"] = ObjectId(lugar_id)
-        if estado_ciclo_vida:
-            filtro["estado_ciclo_vida"] = estado_ciclo_vida.value
-        if busqueda:
-            patron = {"$regex": busqueda, "$options": "i"}
-            filtro["$or"] = [
-                {"nombre": patron},
-                {"numero_inventario": patron},
-                {"marca": patron},
-                {"modelo": patron},
-                {"serie": patron},
-            ]
+        filtro = _construir_filtro(
+            area_id,
+            categoria_id,
+            responsable_id,
+            condicion_id,
+            sede_id,
+            lugar_id,
+            estado_ciclo_vida,
+            busqueda,
+        )
 
         documentos = (
             await self._collection.find(filtro)
@@ -187,3 +206,26 @@ class MongoActivoRepository(ActivoRepositoryPort):
             .to_list(length=None)
         )
         return [_doc_a_entidad(documento) for documento in documentos]
+
+    async def contar(
+        self,
+        area_id: str | None,
+        categoria_id: str | None,
+        responsable_id: str | None,
+        condicion_id: str | None,
+        sede_id: str | None,
+        lugar_id: str | None,
+        estado_ciclo_vida: EstadoCicloVida | None,
+        busqueda: str | None,
+    ) -> int:
+        filtro = _construir_filtro(
+            area_id,
+            categoria_id,
+            responsable_id,
+            condicion_id,
+            sede_id,
+            lugar_id,
+            estado_ciclo_vida,
+            busqueda,
+        )
+        return await self._collection.count_documents(filtro)

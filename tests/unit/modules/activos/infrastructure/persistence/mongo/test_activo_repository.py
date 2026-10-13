@@ -1,9 +1,7 @@
 from datetime import UTC, datetime
-from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 from bson import ObjectId
-from bson.decimal128 import Decimal128
 
 from modules.activos.domain.entities import Activo, EstadoCicloVida, TipoActivo
 from modules.activos.infrastructure.persistence.mongo.activo_repository import (
@@ -31,8 +29,6 @@ def _activo(**overrides) -> Activo:
         estado_ciclo_vida=EstadoCicloVida.DISPONIBLE,
         sede_id=str(ObjectId()),
         lugar_id=str(ObjectId()),
-        valor=Decimal("1500000.50"),
-        fecha_adquisicion=datetime(2026, 1, 1, tzinfo=UTC),
         complementos=[],
         observaciones=None,
         foto_url=None,
@@ -46,7 +42,7 @@ def _activo(**overrides) -> Activo:
     return Activo(**valores)
 
 
-def test_entidad_a_doc_convierte_referencias_a_object_id_y_valor_a_decimal128():
+def test_entidad_a_doc_convierte_referencias_a_object_id_y_no_guarda_valor_ni_fecha_de_adquisicion():
     activo = _activo()
 
     doc = _entidad_a_doc(activo)
@@ -54,12 +50,12 @@ def test_entidad_a_doc_convierte_referencias_a_object_id_y_valor_a_decimal128():
     assert "id" not in doc
     assert doc["categoria_id"] == ObjectId(activo.categoria_id)
     assert doc["area_id"] == ObjectId(activo.area_id)
-    assert isinstance(doc["valor"], Decimal128)
-    assert doc["valor"].to_decimal() == Decimal("1500000.50")
     assert doc["estado_ciclo_vida"] == "disponible"
+    assert "valor" not in doc
+    assert "fecha_adquisicion" not in doc
 
 
-def test_doc_a_entidad_convierte_object_id_a_string_y_decimal128_a_decimal():
+def test_doc_a_entidad_convierte_object_id_a_string_e_ignora_campos_antiguos():
     object_id = ObjectId()
     categoria_id = ObjectId()
     doc = {
@@ -78,8 +74,6 @@ def test_doc_a_entidad_convierte_object_id_a_string_y_decimal128_a_decimal():
         "estado_ciclo_vida": "prestado",
         "sede_id": ObjectId(),
         "lugar_id": ObjectId(),
-        "valor": Decimal128("1500000.50"),
-        "fecha_adquisicion": datetime(2026, 1, 1, tzinfo=UTC),
         "complementos": [{"nombre": "Cargador", "descripcion": None, "cantidad": 1, "serie": None}],
         "observaciones": None,
         "foto_url": None,
@@ -96,7 +90,6 @@ def test_doc_a_entidad_convierte_object_id_a_string_y_decimal128_a_decimal():
 
     assert activo.id == str(object_id)
     assert activo.categoria_id == str(categoria_id)
-    assert activo.valor == Decimal("1500000.50")
     assert activo.estado_ciclo_vida == EstadoCicloVida.PRESTADO
     assert len(activo.complementos) == 1
     assert activo.complementos[0].nombre == "Cargador"

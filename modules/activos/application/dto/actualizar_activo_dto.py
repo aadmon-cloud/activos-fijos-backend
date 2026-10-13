@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime
-from decimal import Decimal
 
 from modules.activos.application.dto.complemento_dto import ComplementoDTO
 
@@ -21,8 +19,6 @@ class ActualizarActivoDTO:
     condicion_id: str | None = None
     sede_id: str | None = None
     lugar_id: str | None = None
-    valor: Decimal | None = None
-    fecha_adquisicion: datetime | None = None
     complementos: list[ComplementoDTO] | None = None
     observaciones: str | None = None
     foto_url: str | None = None

@@ -16,6 +16,10 @@ def test_create_app_expone_endpoint_raiz_con_cabeceras_de_seguridad():
         patch("shared.bootstrap.application.crear_indices_activos", AsyncMock()),
         patch("shared.bootstrap.application.crear_indices_activos_historial", AsyncMock()),
         patch("shared.bootstrap.application.crear_indices_solicitudes", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_mantenimientos", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_auditorias", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_movimientos", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_notificaciones", AsyncMock()),
     ):
         from shared.bootstrap.application import create_app
 
@@ -68,6 +72,10 @@ def test_create_app_registra_el_modulo_tareas():
         patch("shared.bootstrap.application.crear_indices_activos", AsyncMock()),
         patch("shared.bootstrap.application.crear_indices_activos_historial", AsyncMock()),
         patch("shared.bootstrap.application.crear_indices_solicitudes", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_mantenimientos", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_auditorias", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_movimientos", AsyncMock()),
+        patch("shared.bootstrap.application.crear_indices_notificaciones", AsyncMock()),
     ):
         from shared.bootstrap.application import create_app
 

@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -30,8 +29,6 @@ class CrearActivoRequest(BaseModel):
     condicion_id: str
     sede_id: str
     lugar_id: str
-    valor: Decimal = Field(gt=0)
-    fecha_adquisicion: datetime
     marca: str | None = None
     modelo: str | None = None
     serie: str | None = None
@@ -54,8 +51,6 @@ class ActualizarActivoRequest(BaseModel):
     condicion_id: str | None = None
     sede_id: str | None = None
     lugar_id: str | None = None
-    valor: Decimal | None = Field(default=None, gt=0)
-    fecha_adquisicion: datetime | None = None
     complementos: list[ComplementoRequest] | None = None
     observaciones: str | None = None
     foto_url: str | None = None
@@ -82,19 +77,34 @@ class ActivoResponse(BaseModel):
     estado_ciclo_vida: str
     sede_id: str
     lugar_id: str
-    valor: Decimal
-    fecha_adquisicion: datetime
+    fecha_ingreso: datetime
     complementos: list[ComplementoResponse]
     observaciones: str | None
     foto_url: str | None
     ficha_tecnica_url: str | None
 
 
+class ActivoConNombresResponse(ActivoResponse):
+    categoria_nombre: str | None
+    area_nombre: str | None
+    responsable_nombre: str | None
+    condicion_nombre: str | None
+    condicion_color: str | None
+    sede_nombre: str | None
+    lugar_nombre: str | None
+
+
 class EntradaHistorialResponse(BaseModel):
     id: str
     activo_id: str
-    campo: str
-    valor_anterior: str
-    valor_nuevo: str
     modificado_por_nombre: str
     modificado_por_fecha: datetime
+
+    # "cambio_campo" lleva campo y valores; "nota" (p. ej. una novedad de auditoria) solo lleva `nota`.
+    tipo: str = "cambio_campo"
+    campo: str | None = None
+    valor_anterior: str | None = None
+    valor_nuevo: str | None = None
+    nota: str | None = None
+    valor_anterior_nombre: str | None = None
+    valor_nuevo_nombre: str | None = None

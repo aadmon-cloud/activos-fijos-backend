@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -10,7 +9,6 @@ from modules.activos.application.services.crear_activo import CrearActivoService
 from modules.activos.domain.entities import Activo, EstadoCicloVida, TipoActivo
 from modules.activos.domain.errors import (
     ActivoNumeroInventarioDuplicadoError,
-    ActivoValorInvalidoError,
     ComplementoCantidadInvalidaError,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -27,8 +25,6 @@ def _dto(**overrides) -> CrearActivoDTO:
         condicion_id="cond1",
         sede_id="s1",
         lugar_id="l1",
-        valor=Decimal("1500000"),
-        fecha_adquisicion=datetime(2026, 1, 1, tzinfo=UTC),
         creado_por_id="9",
         creado_por_nombre="Admin",
     )
@@ -56,8 +52,6 @@ def repositorio_mock():
         estado_ciclo_vida=activo.estado_ciclo_vida,
         sede_id=activo.sede_id,
         lugar_id=activo.lugar_id,
-        valor=activo.valor,
-        fecha_adquisicion=activo.fecha_adquisicion,
         complementos=activo.complementos,
         observaciones=activo.observaciones,
         foto_url=activo.foto_url,
@@ -75,15 +69,9 @@ async def test_crear_activo_normaliza_el_numero_de_inventario(repositorio_mock):
 
     assert resultado.numero_inventario == "INV-001"
     assert resultado.estado_ciclo_vida == EstadoCicloVida.DISPONIBLE.value
-
-
-async def test_crear_activo_lanza_error_si_el_valor_no_es_positivo(repositorio_mock):
-    service = CrearActivoService(repositorio_mock)
-
-    with pytest.raises(ActivoValorInvalidoError):
-        await service.ejecutar(_dto(valor=Decimal("0")))
-
-    repositorio_mock.guardar.assert_not_called()
+    # La fecha de ingreso la pone el sistema (fecha de creacion del registro), no el usuario.
+    activo_enviado = repositorio_mock.guardar.call_args.args[0]
+    assert resultado.fecha_ingreso == activo_enviado.creado_por.fecha
 
 
 async def test_crear_activo_lanza_error_si_un_complemento_tiene_cantidad_invalida(
@@ -120,8 +108,6 @@ async def test_crear_activo_lanza_error_si_el_numero_de_inventario_ya_existe(rep
         estado_ciclo_vida=EstadoCicloVida.DISPONIBLE,
         sede_id="s1",
         lugar_id="l1",
-        valor=Decimal("1"),
-        fecha_adquisicion=datetime.now(UTC),
         complementos=[],
         observaciones=None,
         foto_url=None,

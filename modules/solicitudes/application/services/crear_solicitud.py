@@ -10,6 +10,7 @@ from modules.solicitudes.domain.errors import (
     ActivoNoEncontradoParaSolicitudError,
     DescripcionVaciaError,
 )
+from shared.application.notifications.enlaces import enlace
 from shared.application.notifications.ports import NotificadorPort
 from shared.domain.entities.audit import AuditPersona
 
@@ -71,10 +72,16 @@ class CrearSolicitudService:
         solicitud_guardada = await self._solicitud_repository.guardar(solicitud)
 
         destinatario = f"rol:{rol_asignado}" if rol_asignado else f"area:{area_id}"
+        nombre_activo = f"{activo.nombre} ({activo.numero_inventario})" if activo.nombre else "un activo"
+        tipo = dto.tipo.value.replace("_", " ")
         await self._notificador.notificar(
             destinatarios=[destinatario],
-            asunto=f"Nueva solicitud de {dto.tipo.value}",
-            cuerpo=descripcion,
+            asunto=f"Nueva solicitud de {tipo}: {nombre_activo}",
+            cuerpo=(
+                f"{dto.creado_por_nombre} creo una solicitud de {tipo} sobre {nombre_activo} "
+                f"(prioridad {dto.prioridad.value}).\n\n{descripcion}\n\n"
+                f"Ver la solicitud: {enlace(f'/solicitudes/detalle?id={solicitud_guardada.id}')}"
+            ),
         )
 
         return solicitud_a_dto(solicitud_guardada)

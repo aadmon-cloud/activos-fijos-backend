@@ -1,7 +1,7 @@
 substitutions:
-  _SERVICE_NAME: fastapi-cloud-run-template
+  _SERVICE_NAME: activos-fijos-backend
   _REGION: us-central1
-  _REPOSITORY: microservicios
+  _REPOSITORY: activos-fijos
 
 steps:
   - id: test

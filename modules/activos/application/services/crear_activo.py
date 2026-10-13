@@ -7,7 +7,6 @@ from modules.activos.application.ports.activo_repository import ActivoRepository
 from modules.activos.domain.entities import Activo, EstadoCicloVida
 from modules.activos.domain.errors import (
     ActivoNumeroInventarioDuplicadoError,
-    ActivoValorInvalidoError,
     ComplementoCantidadInvalidaError,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -19,9 +18,6 @@ class CrearActivoService:
 
     async def ejecutar(self, dto: CrearActivoDTO) -> ActivoDTO:
         numero_inventario = dto.numero_inventario.strip().upper()
-
-        if dto.valor <= 0:
-            raise ActivoValorInvalidoError()
 
         for complemento_dto in dto.complementos:
             if complemento_dto.cantidad < 1:
@@ -49,8 +45,6 @@ class CrearActivoService:
             estado_ciclo_vida=EstadoCicloVida.DISPONIBLE,
             sede_id=dto.sede_id,
             lugar_id=dto.lugar_id,
-            valor=dto.valor,
-            fecha_adquisicion=dto.fecha_adquisicion,
             complementos=[dto_a_complemento(c) for c in dto.complementos],
             observaciones=dto.observaciones,
             foto_url=dto.foto_url,

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 
 from modules.activos.application.dto.complemento_dto import ComplementoDTO, complemento_a_dto
 from modules.activos.domain.entities import Activo
@@ -23,8 +22,7 @@ class ActivoDTO:
     estado_ciclo_vida: str
     sede_id: str
     lugar_id: str
-    valor: Decimal
-    fecha_adquisicion: datetime
+    fecha_ingreso: datetime
     complementos: list[ComplementoDTO]
     observaciones: str | None
     foto_url: str | None
@@ -48,8 +46,7 @@ def activo_a_dto(activo: Activo) -> ActivoDTO:
         estado_ciclo_vida=activo.estado_ciclo_vida.value,
         sede_id=activo.sede_id,
         lugar_id=activo.lugar_id,
-        valor=activo.valor,
-        fecha_adquisicion=activo.fecha_adquisicion,
+        fecha_ingreso=activo.creado_por.fecha,
         complementos=[complemento_a_dto(c) for c in activo.complementos],
         observaciones=activo.observaciones,
         foto_url=activo.foto_url,

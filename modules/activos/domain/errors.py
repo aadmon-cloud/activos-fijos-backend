@@ -28,19 +28,37 @@ class TransicionEstadoInvalidaError(DomainError):
         )
 
 
-class ActivoValorInvalidoError(DomainError):
-    def __init__(self):
-        super().__init__(
-            "El valor del activo debe ser mayor que cero.",
-            code="ACT-004",
-            category=ErrorCategory.VALIDATION,
-        )
-
-
 class ComplementoCantidadInvalidaError(DomainError):
     def __init__(self, nombre_complemento: str):
         super().__init__(
             f"La cantidad del complemento '{nombre_complemento}' debe ser al menos 1.",
             code="ACT-005",
             category=ErrorCategory.VALIDATION,
+        )
+
+
+class FotoTipoNoPermitidoError(DomainError):
+    def __init__(self):
+        super().__init__(
+            "La foto debe ser una imagen JPEG, PNG o WebP.",
+            code="ACT-006",
+            category=ErrorCategory.VALIDATION,
+        )
+
+
+class FotoDemasiadoGrandeError(DomainError):
+    def __init__(self):
+        super().__init__(
+            "La foto supera el tamano maximo permitido (5 MB).",
+            code="ACT-007",
+            category=ErrorCategory.VALIDATION,
+        )
+
+
+class FotoNoEncontradaError(DomainError):
+    def __init__(self, id_activo: str):
+        super().__init__(
+            f"El activo '{id_activo}' no tiene foto.",
+            code="ACT-008",
+            category=ErrorCategory.NOT_FOUND,
         )

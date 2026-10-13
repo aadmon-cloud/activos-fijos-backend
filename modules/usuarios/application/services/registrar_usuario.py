@@ -1,3 +1,4 @@
+import secrets
 from datetime import UTC, datetime
 
 from modules.usuarios.application.dto.registrar_usuario_dto import RegistrarUsuarioDTO
@@ -12,9 +13,8 @@ from modules.usuarios.domain.errors import (
     IdentificacionYaRegistradaError,
     PasswordDebilError,
 )
+from modules.usuarios.domain.reglas import LONGITUD_MINIMA_PASSWORD
 from shared.domain.entities.audit import AuditPersona
-
-_LONGITUD_MINIMA_PASSWORD = 8
 
 
 class RegistrarUsuarioService:
@@ -31,7 +31,7 @@ class RegistrarUsuarioService:
     async def ejecutar(self, dto: RegistrarUsuarioDTO) -> UsuarioDTO:
         email = dto.email.strip().lower()
 
-        if len(dto.password) < _LONGITUD_MINIMA_PASSWORD:
+        if dto.password is not None and len(dto.password) < LONGITUD_MINIMA_PASSWORD:
             raise PasswordDebilError()
 
         if await self._usuario_repository.obtener_por_email(email) is not None:
@@ -51,7 +51,8 @@ class RegistrarUsuarioService:
             email=email,
             nombre=dto.nombre.strip(),
             apellido=dto.apellido.strip(),
-            password_hash=self._hasher.hashear(dto.password),
+            # Sin contrasena, se guarda una que nadie conoce: la cuenta solo se abre con Google.
+            password_hash=self._hasher.hashear(dto.password or secrets.token_urlsafe(32)),
             rol=dto.rol,
             area_id=dto.area_id,
             telefono=dto.telefono,

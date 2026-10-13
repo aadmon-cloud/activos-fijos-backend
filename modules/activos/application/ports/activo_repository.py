@@ -27,3 +27,16 @@ class ActivoRepositoryPort(ABC):
         skip: int,
         limit: int,
     ) -> list[Activo]: ...
+
+    @abstractmethod
+    async def contar(
+        self,
+        area_id: str | None,
+        categoria_id: str | None,
+        responsable_id: str | None,
+        condicion_id: str | None,
+        sede_id: str | None,
+        lugar_id: str | None,
+        estado_ciclo_vida: EstadoCicloVida | None,
+        busqueda: str | None,
+    ) -> int: ...

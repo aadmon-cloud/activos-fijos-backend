@@ -21,9 +21,12 @@ def _doc_a_audit(doc: dict) -> AuditPersona:
 def _entidad_a_doc(entrada: EntradaHistorialActivo) -> dict:
     return {
         "activo_id": ObjectId(entrada.activo_id),
+        "tipo": entrada.tipo,
         "campo": entrada.campo,
         "valor_anterior": entrada.valor_anterior,
         "valor_nuevo": entrada.valor_nuevo,
+        "nota": entrada.nota,
+        "auditoria_id": ObjectId(entrada.auditoria_id) if entrada.auditoria_id else None,
         "modificado_por": _audit_a_doc(entrada.modificado_por),
     }
 
@@ -32,9 +35,12 @@ def _doc_a_entidad(doc: dict) -> EntradaHistorialActivo:
     return EntradaHistorialActivo(
         id=str(doc["_id"]),
         activo_id=str(doc["activo_id"]),
-        campo=doc["campo"],
-        valor_anterior=doc["valor_anterior"],
-        valor_nuevo=doc["valor_nuevo"],
+        tipo=doc.get("tipo", "cambio_campo"),
+        campo=doc.get("campo"),
+        valor_anterior=doc.get("valor_anterior"),
+        valor_nuevo=doc.get("valor_nuevo"),
+        nota=doc.get("nota"),
+        auditoria_id=str(doc["auditoria_id"]) if doc.get("auditoria_id") else None,
         modificado_por=_doc_a_audit(doc["modificado_por"]),
     )
 

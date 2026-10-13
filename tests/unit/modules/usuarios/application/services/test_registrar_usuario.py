@@ -151,3 +151,18 @@ async def test_registrar_usuario_lanza_error_si_el_area_no_existe(
         await service.ejecutar(_dto(area_id="area-inexistente"))
 
     repositorio_mock.guardar.assert_not_called()
+
+
+async def test_registrar_sin_contrasena_guarda_una_que_nadie_conoce(repositorio_mock):
+    from unittest.mock import MagicMock
+
+    hasher = MagicMock()
+    hasher.hashear.side_effect = lambda texto: f"hash:{texto}"
+    service = RegistrarUsuarioService(repositorio_mock, hasher, AsyncMock())
+
+    await service.ejecutar(_dto(password=None))
+
+    guardado = repositorio_mock.guardar.call_args.args[0]
+    assert guardado.password_hash.startswith("hash:")
+    assert len(guardado.password_hash) > len("hash:") + 20
+

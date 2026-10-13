@@ -8,3 +8,10 @@ class IdentidadUsuarioAutenticada:
     nombre: str
     rol: str
     area_id: str | None = None
+
+
+@dataclass(frozen=True)
+class EstadoUsuario:
+    activo: bool
+    rol: str
+    area_id: str | None = None

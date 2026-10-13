@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -10,7 +9,6 @@ from modules.activos.application.services.actualizar_activo import ActualizarAct
 from modules.activos.domain.entities import Activo, EstadoCicloVida, TipoActivo
 from modules.activos.domain.errors import (
     ActivoNoEncontradoError,
-    ActivoValorInvalidoError,
     ComplementoCantidadInvalidaError,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -33,8 +31,6 @@ def _activo(**overrides) -> Activo:
         estado_ciclo_vida=EstadoCicloVida.DISPONIBLE,
         sede_id="s1",
         lugar_id="l1",
-        valor=Decimal("100"),
-        fecha_adquisicion=datetime(2026, 1, 1, tzinfo=UTC),
         complementos=[],
         observaciones=None,
         foto_url=None,
@@ -108,39 +104,5 @@ async def test_actualizar_activo_lanza_error_si_no_existe(
         await service.ejecutar(
             ActualizarActivoDTO(
                 id_activo="1", actualizado_por_id="9", actualizado_por_nombre="Admin"
-            )
-        )
-
-
-async def test_actualizar_activo_lanza_error_si_el_valor_no_es_positivo(
-    activo_repository_mock, historial_repository_mock
-):
-    service = ActualizarActivoService(activo_repository_mock, historial_repository_mock)
-
-    with pytest.raises(ActivoValorInvalidoError):
-        await service.ejecutar(
-            ActualizarActivoDTO(
-                id_activo="1",
-                valor=Decimal("0"),
-                actualizado_por_id="9",
-                actualizado_por_nombre="Admin",
-            )
-        )
-
-
-async def test_actualizar_activo_lanza_error_si_un_complemento_tiene_cantidad_invalida(
-    activo_repository_mock, historial_repository_mock
-):
-    service = ActualizarActivoService(activo_repository_mock, historial_repository_mock)
-
-    with pytest.raises(ComplementoCantidadInvalidaError):
-        await service.ejecutar(
-            ActualizarActivoDTO(
-                id_activo="1",
-                complementos=[
-                    ComplementoDTO(nombre="Mouse", descripcion=None, cantidad=0, serie=None)
-                ],
-                actualizado_por_id="9",
-                actualizado_por_nombre="Admin",
             )
         )

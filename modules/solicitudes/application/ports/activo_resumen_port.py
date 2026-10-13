@@ -7,6 +7,8 @@ class ActivoResumen:
     id: str
     responsable_id: str
     area_id: str
+    nombre: str = ""
+    numero_inventario: str = ""
 
 
 class ActivoResumenPort(ABC):

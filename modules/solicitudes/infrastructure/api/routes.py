@@ -10,7 +10,8 @@ from modules.solicitudes.application.dto.cambiar_estado_solicitud_dto import (
 )
 from modules.solicitudes.application.dto.crear_solicitud_dto import CrearSolicitudDTO
 from modules.solicitudes.application.dto.listar_solicitudes_dto import ListarSolicitudesDTO
-from modules.solicitudes.application.dto.solicitud_dto import SolicitudDTO
+from modules.solicitudes.application.dto.obtener_solicitud_dto import ObtenerSolicitudDTO
+from modules.solicitudes.application.dto.solicitud_dto import SolicitudConNombresDTO, SolicitudDTO
 from modules.solicitudes.application.services.agregar_seguimiento_solicitud import (
     AgregarSeguimientoSolicitudService,
 )
@@ -33,6 +34,7 @@ from modules.solicitudes.infrastructure.api.schemas import (
     CambiarEstadoSolicitudRequest,
     CrearSolicitudRequest,
     EntradaSeguimientoResponse,
+    SolicitudConNombresResponse,
     SolicitudResponse,
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
@@ -64,6 +66,21 @@ def _a_response(solicitud: SolicitudDTO) -> SolicitudResponse:
             )
             for e in solicitud.seguimiento
         ],
+        creado_por_id=solicitud.creado_por_id,
+        creado_por_nombre=solicitud.creado_por_nombre,
+        fecha_creacion=solicitud.fecha_creacion,
+        fecha_actualizacion=solicitud.fecha_actualizacion,
+    )
+
+
+def _a_response_con_nombres(solicitud: SolicitudConNombresDTO) -> SolicitudConNombresResponse:
+    return SolicitudConNombresResponse(
+        **_a_response(solicitud).model_dump(),
+        activo_nombre=solicitud.activo_nombre,
+        activo_numero_inventario=solicitud.activo_numero_inventario,
+        area_nombre=solicitud.area_nombre,
+        estados_permitidos=solicitud.estados_permitidos,
+        puede_comentar=solicitud.puede_comentar,
     )
 
 
@@ -117,8 +134,11 @@ async def listar_solicitudes(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
 ):
-    solicitudes = await service.ejecutar(
+    listado = await service.ejecutar(
         ListarSolicitudesDTO(
+            actor_id=identidad.id_usuario,
+            actor_rol=identidad.rol,
+            actor_area_id=identidad.area_id,
             tipo=tipo,
             estado=estado,
             activo_id=activo_id,
@@ -131,7 +151,8 @@ async def listar_solicitudes(
     )
     return {
         "status": "success",
-        "data": [_a_response(solicitud).model_dump() for solicitud in solicitudes],
+        "data": [_a_response_con_nombres(s).model_dump() for s in listado.items],
+        "meta": {"total": listado.total, "skip": listado.skip, "limit": listado.limit},
     }
 
 
@@ -145,8 +166,15 @@ async def obtener_solicitud(
     identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
     service: Annotated[ObtenerSolicitudService, Depends(get_obtener_solicitud_service)],
 ):
-    solicitud = await service.ejecutar(id_solicitud)
-    return {"status": "success", "data": _a_response(solicitud).model_dump()}
+    solicitud = await service.ejecutar(
+        ObtenerSolicitudDTO(
+            id_solicitud=id_solicitud,
+            actor_id=identidad.id_usuario,
+            actor_rol=identidad.rol,
+            actor_area_id=identidad.area_id,
+        )
+    )
+    return {"status": "success", "data": _a_response_con_nombres(solicitud).model_dump()}
 
 
 @router.put(

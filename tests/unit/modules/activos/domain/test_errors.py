@@ -1,7 +1,6 @@
 from modules.activos.domain.errors import (
     ActivoNoEncontradoError,
     ActivoNumeroInventarioDuplicadoError,
-    ActivoValorInvalidoError,
     ComplementoCantidadInvalidaError,
     TransicionEstadoInvalidaError,
 )
@@ -32,15 +31,23 @@ def test_transicion_estado_invalida_error_tiene_code_y_category():
     assert "disponible" in error.message
 
 
-def test_activo_valor_invalido_error_tiene_code_y_category():
-    error = ActivoValorInvalidoError()
-
-    assert error.code == "ACT-004"
-    assert error.category == ErrorCategory.VALIDATION
-
-
 def test_complemento_cantidad_invalida_error_tiene_code_y_category():
     error = ComplementoCantidadInvalidaError("Cargador")
 
     assert error.code == "ACT-005"
     assert error.category == ErrorCategory.VALIDATION
+
+
+def test_errores_de_foto_tienen_code_y_category():
+    from modules.activos.domain.errors import (
+        FotoDemasiadoGrandeError,
+        FotoNoEncontradaError,
+        FotoTipoNoPermitidoError,
+    )
+
+    assert FotoTipoNoPermitidoError().code == "ACT-006"
+    assert FotoTipoNoPermitidoError().category == ErrorCategory.VALIDATION
+    assert FotoDemasiadoGrandeError().code == "ACT-007"
+    assert FotoDemasiadoGrandeError().category == ErrorCategory.VALIDATION
+    assert FotoNoEncontradaError("1").code == "ACT-008"
+    assert FotoNoEncontradaError("1").category == ErrorCategory.NOT_FOUND

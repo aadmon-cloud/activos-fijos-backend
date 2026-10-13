@@ -1,6 +1,4 @@
 from dataclasses import dataclass, field
-from datetime import datetime
-from decimal import Decimal
 
 from modules.activos.application.dto.complemento_dto import ComplementoDTO
 from modules.activos.domain.entities import TipoActivo
@@ -17,8 +15,6 @@ class CrearActivoDTO:
     condicion_id: str
     sede_id: str
     lugar_id: str
-    valor: Decimal
-    fecha_adquisicion: datetime
     creado_por_id: str
     creado_por_nombre: str
     marca: str | None = None

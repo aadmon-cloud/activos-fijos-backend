@@ -1,4 +1,5 @@
 from bson import ObjectId
+from pymongo.errors import OperationFailure
 
 from modules.usuarios.application.ports.usuario_repository import UsuarioRepositoryPort
 from modules.usuarios.domain.entities import RolUsuario, Usuario
@@ -51,11 +52,28 @@ def _doc_a_entidad(doc: dict) -> Usuario:
     )
 
 
+_INDICE_IDENTIFICACION_ANTERIOR = "uq_identificacion"
+
+
+async def _retirar_indice(coleccion, nombre: str) -> None:
+    try:
+        await coleccion.drop_index(nombre)
+    except OperationFailure:
+        # Instalaciones nuevas: el indice anterior nunca existio.
+        pass
+
+
 async def crear_indices() -> None:
     coleccion = mongo_manager.get_database()["usuarios"]
     await coleccion.create_index("email", name="uq_email", unique=True)
+    # El indice sparse anterior no ignora los null explicitos: el segundo usuario sin identificacion
+    # fallaba con clave duplicada. El parcial solo aplica a las identificaciones con texto.
+    await _retirar_indice(coleccion, _INDICE_IDENTIFICACION_ANTERIOR)
     await coleccion.create_index(
-        "identificacion", name="uq_identificacion", unique=True, sparse=True
+        "identificacion",
+        name="uq_identificacion_texto",
+        unique=True,
+        partialFilterExpression={"identificacion": {"$type": "string"}},
     )
     await coleccion.create_index("area_id", name="idx_area_id")
     await coleccion.create_index("rol", name="idx_rol")

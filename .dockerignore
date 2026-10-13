@@ -1,0 +1,16 @@
+.git/
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+requirements-dev.txt
+README.md
+docs/
+.claude/
+
+# Backend legado (referencia historica, no se versiona ni se empaqueta)
+/BACKEND VIEJO/

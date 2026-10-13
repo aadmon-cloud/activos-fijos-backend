@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime
-from decimal import Decimal
 from enum import Enum
 
 from shared.domain.entities.audit import AuditPersona
@@ -45,8 +43,6 @@ class Activo:
     estado_ciclo_vida: EstadoCicloVida
     sede_id: str
     lugar_id: str
-    valor: Decimal
-    fecha_adquisicion: datetime
     complementos: list[Complemento]
     observaciones: str | None
     foto_url: str | None
@@ -57,9 +53,16 @@ class Activo:
 
 @dataclass(frozen=True, kw_only=True)
 class EntradaHistorialActivo:
+    """Dos variantes conviven en la misma coleccion: 'cambio_campo' (diff de un campo,
+    generado automaticamente al actualizar un activo) y 'nota' (observacion libre,
+    generada por ejemplo por el modulo de auditorias)."""
+
     id: str | None
     activo_id: str
-    campo: str
-    valor_anterior: str
-    valor_nuevo: str
     modificado_por: AuditPersona
+    tipo: str = "cambio_campo"
+    campo: str | None = None
+    valor_anterior: str | None = None
+    valor_nuevo: str | None = None
+    nota: str | None = None
+    auditoria_id: str | None = None

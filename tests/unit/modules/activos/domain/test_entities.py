@@ -1,6 +1,5 @@
 import dataclasses
 from datetime import UTC, datetime
-from decimal import Decimal
 
 import pytest
 
@@ -32,8 +31,6 @@ def _crear_activo(**overrides) -> Activo:
         estado_ciclo_vida=EstadoCicloVida.DISPONIBLE,
         sede_id="s1",
         lugar_id="l1",
-        valor=Decimal("1500000"),
-        fecha_adquisicion=datetime(2026, 1, 1, tzinfo=UTC),
         complementos=[],
         observaciones=None,
         foto_url=None,
@@ -50,7 +47,6 @@ def test_activo_se_crea_con_los_campos_esperados():
 
     assert activo.nombre == "Laptop Dell"
     assert activo.estado_ciclo_vida == EstadoCicloVida.DISPONIBLE
-    assert activo.valor == Decimal("1500000")
 
 
 def test_activo_es_inmutable():

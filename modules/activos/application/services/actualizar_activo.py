@@ -11,7 +11,6 @@ from modules.activos.application.ports.historial_activo_repository import (
 from modules.activos.domain.entities import Activo, EntradaHistorialActivo
 from modules.activos.domain.errors import (
     ActivoNoEncontradoError,
-    ActivoValorInvalidoError,
     ComplementoCantidadInvalidaError,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -32,9 +31,6 @@ class ActualizarActivoService:
         activo = await self._activo_repository.obtener_por_id(dto.id_activo)
         if activo is None:
             raise ActivoNoEncontradoError(dto.id_activo)
-
-        if dto.valor is not None and dto.valor <= 0:
-            raise ActivoValorInvalidoError()
 
         complementos_nuevos = activo.complementos
         if dto.complementos is not None:
@@ -68,12 +64,6 @@ class ActualizarActivoService:
             ),
             sede_id=dto.sede_id if dto.sede_id is not None else activo.sede_id,
             lugar_id=dto.lugar_id if dto.lugar_id is not None else activo.lugar_id,
-            valor=dto.valor if dto.valor is not None else activo.valor,
-            fecha_adquisicion=(
-                dto.fecha_adquisicion
-                if dto.fecha_adquisicion is not None
-                else activo.fecha_adquisicion
-            ),
             complementos=complementos_nuevos,
             observaciones=(
                 dto.observaciones if dto.observaciones is not None else activo.observaciones

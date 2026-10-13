@@ -10,7 +10,7 @@ from modules.solicitudes.application.services.agregar_seguimiento_solicitud impo
     AgregarSeguimientoSolicitudService,
 )
 from modules.solicitudes.domain.entities import EstadoSolicitud, PrioridadSolicitud, Solicitud, TipoSolicitud
-from modules.solicitudes.domain.errors import SolicitudNoEncontradaError, SolicitudSinPermisoError
+from modules.solicitudes.domain.errors import SolicitudNoEncontradaError
 from shared.domain.entities.audit import AuditPersona
 
 
@@ -57,10 +57,12 @@ async def test_agregar_seguimiento_agrega_entrada(repositorio_mock):
     assert resultado.seguimiento[0].comentario == "Ya lo estamos revisando"
 
 
-async def test_agregar_seguimiento_lanza_error_si_no_tiene_permiso(repositorio_mock):
+async def test_agregar_seguimiento_responde_no_encontrada_si_no_puede_ver_la_solicitud(
+    repositorio_mock,
+):
     service = AgregarSeguimientoSolicitudService(repositorio_mock)
 
-    with pytest.raises(SolicitudSinPermisoError):
+    with pytest.raises(SolicitudNoEncontradaError):
         await service.ejecutar(
             AgregarSeguimientoSolicitudDTO(
                 id_solicitud="1",
@@ -88,3 +90,20 @@ async def test_agregar_seguimiento_lanza_error_si_no_existe(repositorio_mock):
                 actor_area_id=None,
             )
         )
+
+
+async def test_el_equipo_asignado_puede_comentar(repositorio_mock):
+    service = AgregarSeguimientoSolicitudService(repositorio_mock)
+
+    resultado = await service.ejecutar(
+        AgregarSeguimientoSolicitudDTO(
+            id_solicitud="1",
+            comentario="Programamos la visita",
+            actor_id="tecnico-1",
+            actor_nombre="Tecnico",
+            actor_rol="mantenimiento",
+            actor_area_id=None,
+        )
+    )
+
+    assert resultado.seguimiento[0].autor_nombre == "Tecnico"

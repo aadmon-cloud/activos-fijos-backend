@@ -41,3 +41,15 @@ class SolicitudResponse(BaseModel):
     rol_asignado: str | None
     area_id: str | None
     seguimiento: list[EntradaSeguimientoResponse]
+    creado_por_id: str
+    creado_por_nombre: str
+    fecha_creacion: datetime
+    fecha_actualizacion: datetime | None
+
+
+class SolicitudConNombresResponse(SolicitudResponse):
+    activo_nombre: str | None
+    activo_numero_inventario: str | None
+    area_nombre: str | None
+    estados_permitidos: list[str]
+    puede_comentar: bool

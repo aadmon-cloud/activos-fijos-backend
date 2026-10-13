@@ -1,6 +1,7 @@
 import logging
 from http import HTTPStatus
 
+from bson.errors import InvalidId
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -39,6 +40,22 @@ def register_error_handlers(app: FastAPI) -> None:
                 "category": exc.category.value,
                 "path": request.url.path,
                 "metadata": exc.details,
+            },
+        )
+
+    @app.exception_handler(InvalidId)
+    async def _manejar_id_invalido(request: Request, exc: InvalidId) -> JSONResponse:
+        # Un id que no tiene forma de ObjectId (ruta, filtro o cuerpo) es un dato invalido del cliente,
+        # no un fallo del servidor.
+        return JSONResponse(
+            status_code=int(HTTPStatus.BAD_REQUEST),
+            content={
+                "status": "error",
+                "code": "GEN-400",
+                "message": "El identificador indicado no es valido.",
+                "category": ErrorCategory.VALIDATION.value,
+                "path": request.url.path,
+                "metadata": {},
             },
         )
 

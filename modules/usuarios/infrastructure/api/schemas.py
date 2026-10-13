@@ -7,11 +7,11 @@ class RegistrarUsuarioRequest(BaseModel):
     email: EmailStr
     nombre: str = Field(min_length=1, max_length=100)
     apellido: str = Field(min_length=1, max_length=100)
-    password: str = Field(min_length=8)
     rol: RolUsuario
     area_id: str | None = None
     telefono: str | None = None
     identificacion: str | None = Field(default=None, max_length=50)
+    password: str | None = Field(default=None, min_length=8)
 
 
 class ActualizarUsuarioRequest(BaseModel):
@@ -22,9 +22,24 @@ class ActualizarUsuarioRequest(BaseModel):
     telefono: str | None = None
 
 
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    password_nueva: str = Field(min_length=8)
+
+
+class RestablecerPasswordRequest(BaseModel):
+    password_nueva: str = Field(min_length=8)
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class LoginGoogleRequest(BaseModel):
+    # Token de identidad (JWT) que Google entrega al navegador y el nonce con el que se pidio.
+    credencial: str = Field(min_length=20, max_length=4096)
+    nonce: str = Field(min_length=8, max_length=200)
 
 
 class UsuarioResponse(BaseModel):
@@ -39,7 +54,5 @@ class UsuarioResponse(BaseModel):
     activo: bool
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
+class SesionResponse(BaseModel):
     usuario: UsuarioResponse

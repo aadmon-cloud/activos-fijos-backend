@@ -22,4 +22,6 @@ class MongoActivoResumenAdapter(ActivoResumenPort):
             id=str(doc["_id"]),
             responsable_id=str(doc["responsable_id"]),
             area_id=str(doc["area_id"]),
+            nombre=doc.get("nombre", ""),
+            numero_inventario=doc.get("numero_inventario", ""),
         )

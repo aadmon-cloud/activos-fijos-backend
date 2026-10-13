@@ -1,6 +1,9 @@
 from bson import ObjectId
 
-from modules.solicitudes.application.ports.solicitud_repository import SolicitudRepositoryPort
+from modules.solicitudes.application.ports.solicitud_repository import (
+    SolicitudRepositoryPort,
+    VisibilidadSolicitud,
+)
 from modules.solicitudes.domain.entities import (
     EntradaSeguimiento,
     EstadoSolicitud,
@@ -77,6 +80,41 @@ def _doc_a_entidad(doc: dict) -> Solicitud:
     )
 
 
+def _construir_filtro(
+    tipo: TipoSolicitud | None,
+    estado: EstadoSolicitud | None,
+    activo_id: str | None,
+    rol_asignado: str | None,
+    area_id: str | None,
+    creado_por_id: str | None,
+    visible_para: VisibilidadSolicitud | None,
+) -> dict:
+    filtro: dict = {}
+    if tipo:
+        filtro["tipo"] = tipo.value
+    if estado:
+        filtro["estado"] = estado.value
+    if activo_id:
+        filtro["activo_id"] = ObjectId(activo_id)
+    if rol_asignado:
+        filtro["rol_asignado"] = rol_asignado
+    if area_id:
+        filtro["area_id"] = ObjectId(area_id)
+    if creado_por_id:
+        filtro["creado_por.id_persona"] = creado_por_id
+    if visible_para is not None:
+        # Solo lo que el usuario creo o se asigno a su rol o area; combinado (AND) con los filtros.
+        condiciones = [
+            {"creado_por.id_persona": visible_para.actor_id},
+            {"rol_asignado": visible_para.rol},
+        ]
+        if visible_para.area_id:
+            condiciones.append({"area_id": ObjectId(visible_para.area_id)})
+        filtro["$or"] = condiciones
+
+    return filtro
+
+
 async def crear_indices() -> None:
     coleccion = mongo_manager.get_database()[_NOMBRE_COLECCION]
     await coleccion.create_index("activo_id", name="idx_activo_id")
@@ -119,22 +157,13 @@ class MongoSolicitudRepository(SolicitudRepositoryPort):
         rol_asignado: str | None,
         area_id: str | None,
         creado_por_id: str | None,
+        visible_para: VisibilidadSolicitud | None,
         skip: int,
         limit: int,
     ) -> list[Solicitud]:
-        filtro: dict = {}
-        if tipo:
-            filtro["tipo"] = tipo.value
-        if estado:
-            filtro["estado"] = estado.value
-        if activo_id:
-            filtro["activo_id"] = ObjectId(activo_id)
-        if rol_asignado:
-            filtro["rol_asignado"] = rol_asignado
-        if area_id:
-            filtro["area_id"] = ObjectId(area_id)
-        if creado_por_id:
-            filtro["creado_por.id_persona"] = creado_por_id
+        filtro = _construir_filtro(
+            tipo, estado, activo_id, rol_asignado, area_id, creado_por_id, visible_para
+        )
 
         documentos = (
             await self._collection.find(filtro)
@@ -144,3 +173,18 @@ class MongoSolicitudRepository(SolicitudRepositoryPort):
             .to_list(length=None)
         )
         return [_doc_a_entidad(documento) for documento in documentos]
+
+    async def contar(
+        self,
+        tipo: TipoSolicitud | None,
+        estado: EstadoSolicitud | None,
+        activo_id: str | None,
+        rol_asignado: str | None,
+        area_id: str | None,
+        creado_por_id: str | None,
+        visible_para: VisibilidadSolicitud | None,
+    ) -> int:
+        filtro = _construir_filtro(
+            tipo, estado, activo_id, rol_asignado, area_id, creado_por_id, visible_para
+        )
+        return await self._collection.count_documents(filtro)

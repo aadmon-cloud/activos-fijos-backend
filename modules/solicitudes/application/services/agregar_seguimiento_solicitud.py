@@ -7,8 +7,8 @@ from modules.solicitudes.application.dto.agregar_seguimiento_solicitud_dto impor
 from modules.solicitudes.application.dto.solicitud_dto import SolicitudDTO, solicitud_a_dto
 from modules.solicitudes.application.ports.solicitud_repository import SolicitudRepositoryPort
 from modules.solicitudes.domain.entities import EntradaSeguimiento
-from modules.solicitudes.domain.errors import SolicitudNoEncontradaError, SolicitudSinPermisoError
-from modules.solicitudes.domain.permisos import puede_gestionar
+from modules.solicitudes.domain.errors import SolicitudNoEncontradaError
+from modules.solicitudes.domain.permisos import puede_comentar
 from shared.domain.entities.audit import AuditPersona
 
 
@@ -21,8 +21,9 @@ class AgregarSeguimientoSolicitudService:
         if solicitud is None:
             raise SolicitudNoEncontradaError(dto.id_solicitud)
 
-        if not puede_gestionar(solicitud, dto.actor_id, dto.actor_rol, dto.actor_area_id):
-            raise SolicitudSinPermisoError(dto.id_solicitud)
+        # Sin acceso a la solicitud: se responde como si no existiera.
+        if not puede_comentar(solicitud, dto.actor_id, dto.actor_rol, dto.actor_area_id):
+            raise SolicitudNoEncontradaError(dto.id_solicitud)
 
         nueva_entrada = EntradaSeguimiento(
             autor=AuditPersona(
