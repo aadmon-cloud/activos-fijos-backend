@@ -4,64 +4,55 @@ from datetime import UTC, datetime
 from modules.movimientos.application.avisos import EventoMovimiento, avisar
 from modules.movimientos.application.dto.acciones_movimiento_dto import ConfirmarSalidaDTO
 from modules.movimientos.application.dto.movimiento_dto import MovimientoDTO, movimiento_a_dto
-from modules.movimientos.application.ports.activo_movimiento_port import (
-    ActivoMovimientoPort,
-    ActivoResumenMovimiento,
-)
-from modules.movimientos.application.ports.generador_comprobante_port import (
-    GeneradorComprobantePort,
-)
+from modules.movimientos.application.emisor_actas import EmisorActas
+from modules.movimientos.application.ports.activo_movimiento_port import ActivoMovimientoPort
 from modules.movimientos.application.ports.movimiento_repository import MovimientoRepositoryPort
-from modules.movimientos.application.ports.resolutor_nombres_port import (
-    ReferenciasMovimiento,
-    ResolutorNombresMovimientoPort,
-)
 from modules.movimientos.application.seleccion_activos import (
     aplicar_a_activos,
     ahora_audit,
-    elegir_activos,
     reemplazar_items,
 )
 from modules.movimientos.domain.entities import (
     EstadoItemMovimiento,
     EtapaRechazo,
     ItemMovimiento,
-    Movimiento,
+    LineaActa,
+    ResultadoChequeo,
+    SelloActa,
+    TipoActa,
     TipoMovimiento,
 )
 from modules.movimientos.domain.errors import (
     MovimientoNoEncontradoError,
+    NingunActivoChequeadoError,
     OperacionSobreActivoFallidaError,
     TransicionEstadoMovimientoInvalidaError,
 )
 from modules.movimientos.domain.transiciones import calcular_estado
-from shared.application.file_storage.ports import AlmacenArchivosPort
 from shared.application.notifications.ports import NotificadorPort
 
 _ESTADO_PRESTADO = "prestado"
 _ESTADO_DISPONIBLE = "disponible"
-_NOMBRE_COMPROBANTE = "comprobante.pdf"
 _MOTIVO_POR_DEFECTO = "No autorizado por administracion en la salida."
 
 
 class ConfirmarSalidaMovimientoService:
-    """Aprobacion final de administracion de un prestamo o salida a evento: elige que activos salen (todos o solo
-    algunos). Los que salen pasan a `prestado` y a cargo del destinatario; los demas quedan rechazados."""
+    """Cierra el chequeo de salida de un prestamo o salida a evento.
+
+    Salen los activos chequeados como encontrados (o con novedad): pasan a `prestado` y a cargo del destinatario.
+    Los demas (no encontrados o sin chequear) quedan rechazados. Se genera el acta de salida con el sello de
+    administracion; el del responsable queda pendiente hasta que la acepte."""
 
     def __init__(
         self,
         movimiento_repository: MovimientoRepositoryPort,
         activo_movimiento: ActivoMovimientoPort,
-        resolutor_nombres: ResolutorNombresMovimientoPort,
-        generador_comprobante: GeneradorComprobantePort,
-        almacen_archivos: AlmacenArchivosPort,
+        emisor_actas: EmisorActas,
         notificador: NotificadorPort,
     ):
         self._movimiento_repository = movimiento_repository
         self._activo_movimiento = activo_movimiento
-        self._resolutor_nombres = resolutor_nombres
-        self._generador_comprobante = generador_comprobante
-        self._almacen_archivos = almacen_archivos
+        self._emisor_actas = emisor_actas
         self._notificador = notificador
 
     async def ejecutar(self, dto: ConfirmarSalidaDTO) -> MovimientoDTO:
@@ -69,14 +60,15 @@ class ConfirmarSalidaMovimientoService:
         if movimiento is None:
             raise MovimientoNoEncontradoError(dto.id_movimiento)
 
-        invalido = TransicionEstadoMovimientoInvalidaError(movimiento.estado.value, "en_curso")
-        if movimiento.tipo == TipoMovimiento.BAJA:
-            raise invalido
-
         pendientes = [i for i in movimiento.items if i.estado == EstadoItemMovimiento.PENDIENTE_ADMIN]
-        salen = elegir_activos(movimiento, pendientes, dto.activo_ids, invalido)
-        ids_salen = {item.activo_id for item in salen}
-        no_salen = [item for item in pendientes if item.activo_id not in ids_salen]
+        if movimiento.tipo == TipoMovimiento.BAJA or not pendientes:
+            raise TransicionEstadoMovimientoInvalidaError(movimiento.estado.value, "en_curso")
+
+        salen = [i for i in pendientes if _sale(i)]
+        if not salen:
+            raise NingunActivoChequeadoError()
+
+        no_salen = [i for i in pendientes if not _sale(i)]
         audit = ahora_audit(dto.actor_id, dto.actor_nombre)
 
         await aplicar_a_activos(
@@ -89,13 +81,15 @@ class ConfirmarSalidaMovimientoService:
         cambios: dict[str, ItemMovimiento] = {
             item.activo_id: replace(item, estado=EstadoItemMovimiento.EN_CURSO) for item in salen
         }
+        motivos: dict[str, str] = {}
         for item in no_salen:
+            motivos[item.activo_id] = _motivo(item, dto)
             cambios[item.activo_id] = replace(
                 item,
                 estado=EstadoItemMovimiento.RECHAZADO,
                 rechazado_por=audit,
                 etapa_rechazo=EtapaRechazo.ADMINISTRACION,
-                motivo_rechazo=(dto.motivo_no_incluidos or "").strip() or _MOTIVO_POR_DEFECTO,
+                motivo_rechazo=motivos[item.activo_id],
             )
 
         items = reemplazar_items(movimiento, cambios)
@@ -108,14 +102,27 @@ class ConfirmarSalidaMovimientoService:
             actualizado_por=audit,
         )
 
-        resumenes = await self._activo_movimiento.obtener_resumenes(movimiento.activo_ids)
-        if movimiento.tipo == TipoMovimiento.SALIDA_EVENTO:
-            confirmado = replace(
-                confirmado,
-                comprobante_archivo_id=await self._generar_comprobante(confirmado, salen, resumenes),
+        lineas = [
+            LineaActa(
+                activo_id=item.activo_id,
+                resultado=item.chequeo_salida.resultado,
+                observacion=item.chequeo_salida.observacion,
             )
+            for item in salen
+        ] + [
+            LineaActa(activo_id=item.activo_id, resultado=ResultadoChequeo.NO_ENCONTRADO, observacion=motivos[item.activo_id])
+            for item in no_salen
+        ]
+        acta = await self._emisor_actas.emitir(
+            confirmado,
+            TipoActa.SALIDA,
+            lineas,
+            SelloActa(id_persona=dto.actor_id, nombre=dto.actor_nombre, correo=dto.actor_correo, fecha=audit.fecha),
+        )
+        confirmado = replace(confirmado, actas=[*confirmado.actas, acta], comprobante_archivo_id=acta.archivo_id)
 
         guardado = await self._movimiento_repository.guardar(confirmado)
+        resumenes = await self._activo_movimiento.obtener_resumenes(movimiento.activo_ids)
         await avisar(self._notificador, EventoMovimiento.SALIDA_CONFIRMADA, guardado, resumenes)
 
         return movimiento_a_dto(guardado)
@@ -146,29 +153,13 @@ class ConfirmarSalidaMovimientoService:
             item.activo_id, _ESTADO_DISPONIBLE, dto.actor_id, dto.actor_nombre
         )
 
-    async def _generar_comprobante(
-        self,
-        movimiento: Movimiento,
-        salen: list[ItemMovimiento],
-        resumenes: dict[str, ActivoResumenMovimiento],
-    ) -> str:
-        nombres = await self._resolutor_nombres.resolver(
-            ReferenciasMovimiento(usuario_ids={movimiento.usuario_destino_id})
-        )
-        lineas = [_linea_activo(resumenes.get(item.activo_id), item.activo_id) for item in salen]
-        contenido_pdf = await self._generador_comprobante.generar_pdf(
-            movimiento,
-            lineas,
-            nombres.usuarios.get(movimiento.usuario_destino_id, movimiento.usuario_destino_id),
-        )
 
-        return await self._almacen_archivos.guardar(
-            movimiento.id, _NOMBRE_COMPROBANTE, contenido_pdf, "application/pdf"
-        )
+def _sale(item: ItemMovimiento) -> bool:
+    return item.chequeo_salida is not None and item.chequeo_salida.resultado != ResultadoChequeo.NO_ENCONTRADO
 
 
-def _linea_activo(resumen: ActivoResumenMovimiento | None, activo_id: str) -> str:
-    if resumen is None or not resumen.nombre:
-        return activo_id
+def _motivo(item: ItemMovimiento, dto: ConfirmarSalidaDTO) -> str:
+    """Por que no sale: lo que anoto quien lo chequeo, o el motivo general, o uno por defecto."""
+    propio = item.chequeo_salida.observacion if item.chequeo_salida else None
 
-    return f"{resumen.numero_inventario} - {resumen.nombre}" if resumen.numero_inventario else resumen.nombre
+    return propio or (dto.motivo_no_incluidos or "").strip() or _MOTIVO_POR_DEFECTO

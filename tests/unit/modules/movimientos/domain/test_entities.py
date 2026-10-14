@@ -38,3 +38,11 @@ def test_solo_ocupan_el_activo_los_items_que_siguen_vivos():
     assert EstadoItemMovimiento.DEVOLUCION_SOLICITADA in ESTADOS_ITEM_ACTIVOS
     assert EstadoItemMovimiento.RECHAZADO not in ESTADOS_ITEM_ACTIVOS
     assert EstadoItemMovimiento.DEVUELTO not in ESTADOS_ITEM_ACTIVOS
+
+
+def test_un_movimiento_busca_sus_actas_por_id(fabrica):
+    movimiento = fabrica.movimiento(actas=[fabrica.acta(id="x1"), fabrica.acta(id="x2", numero=2)])
+
+    assert movimiento.acta("x2").numero == 2
+    assert movimiento.acta("zzz") is None
+    assert fabrica.movimiento().actas == []

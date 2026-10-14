@@ -6,17 +6,27 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from modules.movimientos.application.dto.acciones_movimiento_dto import (
     ConfirmarDevolucionDTO,
     ConfirmarSalidaDTO,
-    ReciboActivoDTO,
     SolicitarDevolucionDTO,
 )
 from modules.movimientos.application.dto.actor_movimiento_dto import ActorMovimientoDTO
 from modules.movimientos.application.dto.aprobar_movimiento_dto import AprobarMovimientoDTO
+from modules.movimientos.application.dto.chequeo_movimiento_dto import (
+    AceptarActaDTO,
+    ChequearItemDTO,
+    ObtenerActaDTO,
+)
 from modules.movimientos.application.dto.listar_movimientos_dto import ListarMovimientosDTO
 from modules.movimientos.application.dto.movimiento_dto import MovimientoDTO
 from modules.movimientos.application.dto.obtener_movimiento_dto import ObtenerMovimientoDTO
 from modules.movimientos.application.dto.rechazar_movimiento_dto import RechazarMovimientoDTO
 from modules.movimientos.application.dto.solicitar_movimiento_dto import SolicitarMovimientoDTO
+from modules.movimientos.application.services.aceptar_acta_movimiento import (
+    AceptarActaMovimientoService,
+)
 from modules.movimientos.application.services.aprobar_movimiento import AprobarMovimientoService
+from modules.movimientos.application.services.chequear_item_movimiento import (
+    ChequearItemMovimientoService,
+)
 from modules.movimientos.application.services.confirmar_devolucion_movimiento import (
     ConfirmarDevolucionMovimientoService,
 )
@@ -27,6 +37,9 @@ from modules.movimientos.application.services.ejecutar_baja_movimiento import (
     EjecutarBajaMovimientoService,
 )
 from modules.movimientos.application.services.listar_movimientos import ListarMovimientosService
+from modules.movimientos.application.services.obtener_acta_movimiento import (
+    ObtenerActaMovimientoService,
+)
 from modules.movimientos.application.services.obtener_comprobante_movimiento import (
     ObtenerComprobanteMovimientoService,
 )
@@ -40,11 +53,14 @@ from modules.movimientos.application.services.solicitar_movimiento import (
 )
 from modules.movimientos.domain.entities import EstadoMovimiento, TipoMovimiento
 from modules.movimientos.infrastructure.api.dependencies import (
+    get_aceptar_acta_movimiento_service,
     get_aprobar_movimiento_service,
+    get_chequear_item_movimiento_service,
     get_confirmar_devolucion_movimiento_service,
     get_confirmar_salida_movimiento_service,
     get_ejecutar_baja_movimiento_service,
     get_listar_movimientos_service,
+    get_obtener_acta_movimiento_service,
     get_obtener_comprobante_movimiento_service,
     get_obtener_movimiento_service,
     get_rechazar_movimiento_service,
@@ -53,7 +69,7 @@ from modules.movimientos.infrastructure.api.dependencies import (
 )
 from modules.movimientos.infrastructure.api.schemas import (
     AccionSobreActivosRequest,
-    ConfirmarDevolucionRequest,
+    ChequeoItemRequest,
     ConfirmarSalidaRequest,
     MovimientoResponse,
     RechazarMovimientoRequest,
@@ -227,12 +243,42 @@ async def rechazar_movimiento(
     return {"status": "success", "data": _a_response(movimiento)}
 
 
+@router.put(
+    "/{id_movimiento}/items/{activo_id}/chequeo",
+    summary="Administracion marca un activo en el chequeo de salida o de ingreso (se guarda al instante)",
+    responses={
+        403: {"description": "El activo no esta en una fase que se pueda chequear, o falta el permiso"},
+        404: {"description": "El movimiento no existe"},
+        422: {"description": "Falta describir la novedad, o el activo no hace parte del movimiento"},
+    },
+)
+async def chequear_item_movimiento(
+    id_movimiento: str,
+    activo_id: str,
+    body: ChequeoItemRequest,
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_gestionar)],
+    service: Annotated[ChequearItemMovimientoService, Depends(get_chequear_item_movimiento_service)],
+):
+    movimiento = await service.ejecutar(
+        ChequearItemDTO(
+            id_movimiento=id_movimiento,
+            activo_id=activo_id,
+            resultado=body.resultado,
+            observacion=body.observacion,
+            actor_id=identidad.id_usuario,
+            actor_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
+        )
+    )
+    return {"status": "success", "data": _a_response(movimiento)}
+
+
 @router.post(
     "/{id_movimiento}/confirmar-salida",
-    summary="Administracion confirma la salida de los activos elegidos (prestamo o salida para evento)",
+    summary="Cierra el chequeo de salida: sale lo encontrado, se genera el acta de salida (prestamo o evento)",
     responses={
         404: {"description": "El movimiento no existe"},
-        422: {"description": "No hay activos esperando a administracion, o el cambio sobre un activo fallo"},
+        422: {"description": "No hay activos chequeados como encontrados, o el cambio sobre un activo fallo"},
     },
 )
 async def confirmar_salida_movimiento(
@@ -248,7 +294,7 @@ async def confirmar_salida_movimiento(
             id_movimiento=id_movimiento,
             actor_id=identidad.id_usuario,
             actor_nombre=identidad.nombre,
-            activo_ids=body.activo_ids if body else None,
+            actor_correo=identidad.email,
             motivo_no_incluidos=body.motivo_no_incluidos if body else None,
         )
     )
@@ -286,10 +332,10 @@ async def solicitar_devolucion_movimiento(
 
 @router.post(
     "/{id_movimiento}/confirmar-devolucion",
-    summary="Administracion recibe de vuelta los activos, cada uno bien o con novedad",
+    summary="Cierra el chequeo de ingreso: se reciben los activos encontrados y se genera el acta de ingreso",
     responses={
         404: {"description": "El movimiento no existe"},
-        422: {"description": "No hay activos fuera, falta describir una novedad, o el cambio sobre un activo fallo"},
+        422: {"description": "No hay activos fuera, ninguno chequeado como encontrado, o el cambio sobre un activo fallo"},
     },
 )
 async def confirmar_devolucion_movimiento(
@@ -298,26 +344,69 @@ async def confirmar_devolucion_movimiento(
     service: Annotated[
         ConfirmarDevolucionMovimientoService, Depends(get_confirmar_devolucion_movimiento_service)
     ],
-    body: ConfirmarDevolucionRequest | None = None,
 ):
-    recibos = None
-    if body and body.recibos is not None:
-        recibos = [
-            ReciboActivoDTO(
-                activo_id=recibo.activo_id, con_novedad=recibo.con_novedad, observacion=recibo.observacion
-            )
-            for recibo in body.recibos
-        ]
-
     movimiento = await service.ejecutar(
         ConfirmarDevolucionDTO(
             id_movimiento=id_movimiento,
             actor_id=identidad.id_usuario,
             actor_nombre=identidad.nombre,
-            recibos=recibos,
+            actor_correo=identidad.email,
         )
     )
     return {"status": "success", "data": _a_response(movimiento)}
+
+
+@router.post(
+    "/{id_movimiento}/actas/{acta_id}/aceptar",
+    summary="Quien retira o devuelve los activos acepta el acta (queda su sello con nombre y correo)",
+    responses={
+        403: {"description": "Solo el responsable que retira o devuelve puede aceptar el acta"},
+        404: {"description": "El movimiento o el acta no existen"},
+        409: {"description": "El acta ya fue aceptada"},
+    },
+)
+async def aceptar_acta_movimiento(
+    id_movimiento: str,
+    acta_id: str,
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
+    service: Annotated[AceptarActaMovimientoService, Depends(get_aceptar_acta_movimiento_service)],
+):
+    movimiento = await service.ejecutar(
+        AceptarActaDTO(
+            id_movimiento=id_movimiento,
+            acta_id=acta_id,
+            actor_id=identidad.id_usuario,
+            actor_nombre=identidad.nombre,
+            actor_correo=identidad.email,
+        )
+    )
+    return {"status": "success", "data": _a_response(movimiento)}
+
+
+@router.get(
+    "/{id_movimiento}/actas/{acta_id}/pdf",
+    summary="Descarga el PDF de un acta de salida o de ingreso",
+    responses={404: {"description": "El movimiento o el acta no existen"}},
+)
+async def obtener_acta_movimiento(
+    id_movimiento: str,
+    acta_id: str,
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
+    service: Annotated[ObtenerActaMovimientoService, Depends(get_obtener_acta_movimiento_service)],
+):
+    archivo = await service.ejecutar(
+        ObtenerActaDTO(
+            id_movimiento=id_movimiento, acta_id=acta_id, actor_id=identidad.id_usuario, actor_rol=identidad.rol
+        )
+    )
+    return Response(
+        content=archivo.contenido,
+        media_type=archivo.tipo_mime,
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "Content-Disposition": f'attachment; filename="{archivo.nombre}"',
+        },
+    )
 
 
 @router.post(

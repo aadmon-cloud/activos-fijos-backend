@@ -1,14 +1,16 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class ConfirmarSalidaDTO:
+    """Cierra el chequeo de salida: sale lo chequeado como encontrado (o con novedad); lo demas se rechaza."""
+
     id_movimiento: str
     actor_id: str
     actor_nombre: str
+    actor_correo: str
 
-    # Activos que salen; None = todos los que esperan a administracion. Los demas se rechazan.
-    activo_ids: list[str] | None = None
+    # Motivo para los activos que no salen y no tienen observacion propia en su chequeo.
     motivo_no_incluidos: str | None = None
 
 
@@ -24,19 +26,10 @@ class SolicitarDevolucionDTO:
 
 
 @dataclass
-class ReciboActivoDTO:
-    """Como se recibe un activo de vuelta: bien, o con una novedad que se describe."""
-
-    activo_id: str
-    con_novedad: bool = False
-    observacion: str | None = None
-
-
-@dataclass
 class ConfirmarDevolucionDTO:
+    """Cierra el chequeo de ingreso: se reciben los chequeados como encontrados (o con novedad)."""
+
     id_movimiento: str
     actor_id: str
     actor_nombre: str
-
-    # Un recibo por cada activo que se recibe; None = todos los que estan fuera, sin novedad.
-    recibos: list[ReciboActivoDTO] | None = field(default=None)
+    actor_correo: str

@@ -96,14 +96,43 @@ def test_rechazado_avisa_a_los_participantes_con_el_motivo_de_cada_activo(fabric
     assert "Proyector (INV-1)" in aviso.asunto  # solo el rechazado
 
 
-def test_salida_confirmada_menciona_solo_lo_que_salio_y_el_comprobante(fabrica):
-    movimiento = _movimiento(fabrica, (I.EN_CURSO, I.RECHAZADO), ("r1", "r2"), comprobante_archivo_id="f1")
+def test_salida_confirmada_menciona_solo_lo_que_salio_y_pide_aceptar_el_acta(fabrica):
+    movimiento = _movimiento(fabrica, (I.EN_CURSO, I.RECHAZADO), ("r1", "r2"), actas=[fabrica.acta()])
 
     aviso = construir_aviso(EventoMovimiento.SALIDA_CONFIRMADA, movimiento, _activos(fabrica))
 
     assert "Proyector" in aviso.cuerpo
     assert "Pantalla" not in aviso.cuerpo
-    assert "comprobante" in aviso.cuerpo.lower()
+    assert "acta de salida" in aviso.cuerpo.lower() and "aceptarla" in aviso.cuerpo
+    assert "usuario:destino" in aviso.destinatarios
+
+
+def test_salida_confirmada_sin_acta_no_habla_del_acta(fabrica):
+    movimiento = _movimiento(fabrica, (I.EN_CURSO,), ("r1",))
+
+    aviso = construir_aviso(EventoMovimiento.SALIDA_CONFIRMADA, movimiento, _activos(fabrica))
+
+    assert "acta" not in aviso.cuerpo.lower()
+
+
+def test_devolucion_confirmada_recuerda_aceptar_el_acta_de_ingreso(fabrica):
+    item = fabrica.item(activo_id="a1", estado=I.DEVUELTO)
+
+    aviso = construir_aviso(EventoMovimiento.DEVOLUCION_CONFIRMADA, _movimiento(fabrica, items=[item]), _activos(fabrica))
+
+    assert "acta de ingreso" in aviso.cuerpo.lower()
+
+
+def test_acta_aceptada_avisa_a_administracion_y_participantes_con_el_nombre_de_quien_acepto(fabrica):
+    acta = fabrica.acta(aceptada_por=fabrica.sello("destino", "Ana Gomez", "ana@example.com"))
+    movimiento = _movimiento(fabrica, (I.EN_CURSO,), ("r1",), actas=[acta])
+
+    aviso = construir_aviso(EventoMovimiento.ACTA_ACEPTADA, movimiento, _activos(fabrica), acta)
+
+    assert aviso.destinatarios[:2] == [_ADMIN, _SUPER]
+    assert "usuario:destino" in aviso.destinatarios and "usuario:creador" in aviso.destinatarios
+    assert "Acta de salida No. 1 aceptada" in aviso.asunto
+    assert "Ana Gomez" in aviso.cuerpo
 
 
 def test_devolucion_solicitada_avisa_a_administracion(fabrica):

@@ -7,6 +7,7 @@ from modules.movimientos.domain.permisos import (
 from modules.movimientos.domain.permisos import (
     acciones_de_item,
     acciones_permitidas,
+    puede_aceptar_acta,
     puede_ver,
     tiene_el_activo,
 )
@@ -157,3 +158,34 @@ def test_el_responsable_de_cualquiera_de_los_activos_ve_el_movimiento(fabrica):
     )
 
     assert puede_ver(movimiento, "u3", EMPLEADO, {"a1": "u1", "a2": "u3"}) is True
+
+
+# --- actas ---
+
+
+def test_acepta_el_acta_el_destinatario_y_una_sola_vez(fabrica):
+    movimiento = fabrica.movimiento(usuario_destino_id="u2")
+    pendiente = fabrica.acta()
+    aceptada = fabrica.acta(aceptada_por=fabrica.sello("u2", "Destino", "d@example.com"))
+
+    assert puede_aceptar_acta(movimiento, pendiente, "u2") is True
+    assert puede_aceptar_acta(movimiento, pendiente, "u1") is False
+    assert puede_aceptar_acta(movimiento, pendiente, "admin") is False
+    assert puede_aceptar_acta(movimiento, aceptada, "u2") is False
+
+
+def test_aceptar_acta_aparece_entre_las_acciones_del_destinatario_mientras_haya_un_acta_pendiente(fabrica):
+    item = fabrica.item(estado=I.EN_CURSO)
+    movimiento = fabrica.movimiento(
+        items=[item], usuario_destino_id="u2", estado=E.EN_CURSO, actas=[fabrica.acta()]
+    )
+
+    assert A.ACEPTAR_ACTA in acciones_permitidas(movimiento, "u2", EMPLEADO, {"a1": "u2"})
+    assert A.ACEPTAR_ACTA not in acciones_permitidas(movimiento, "admin", ADMIN, {"a1": "u2"})
+
+
+def test_sin_actas_no_hay_nada_que_aceptar(fabrica):
+    item = fabrica.item(estado=I.EN_CURSO)
+    movimiento = fabrica.movimiento(items=[item], usuario_destino_id="u2", estado=E.EN_CURSO)
+
+    assert A.ACEPTAR_ACTA not in acciones_permitidas(movimiento, "u2", EMPLEADO, {"a1": "u2"})

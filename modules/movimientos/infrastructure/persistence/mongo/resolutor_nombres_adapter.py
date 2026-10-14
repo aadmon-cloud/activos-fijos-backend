@@ -31,11 +31,13 @@ class MongoResolutorNombresMovimiento(ResolutorNombresMovimientoPort):
                 )
 
         usuarios: dict[str, str] = {}
+        correos: dict[str, str] = {}
         if referencias.usuario_ids:
             ids = [ObjectId(i) for i in referencias.usuario_ids]
             async for doc in db[_NOMBRE_COLECCION_USUARIOS].find(
-                {"_id": {"$in": ids}}, {"nombre": 1, "apellido": 1}
+                {"_id": {"$in": ids}}, {"nombre": 1, "apellido": 1, "email": 1}
             ):
                 usuarios[str(doc["_id"])] = f"{doc['nombre']} {doc['apellido']}".strip()
+                correos[str(doc["_id"])] = doc.get("email", "")
 
-        return NombresReferenciasMovimiento(activos=activos, usuarios=usuarios)
+        return NombresReferenciasMovimiento(activos=activos, usuarios=usuarios, correos=correos)

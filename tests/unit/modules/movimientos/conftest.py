@@ -4,10 +4,16 @@ import pytest
 
 from modules.movimientos.application.ports.activo_movimiento_port import ActivoResumenMovimiento
 from modules.movimientos.domain.entities import (
+    ActaMovimiento,
+    ChequeoItem,
     EstadoItemMovimiento,
     EstadoMovimiento,
     ItemMovimiento,
+    LineaActa,
     Movimiento,
+    ResultadoChequeo,
+    SelloActa,
+    TipoActa,
     TipoMovimiento,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -19,6 +25,27 @@ class Fabrica:
     @staticmethod
     def audit(id_persona: str = "u2", nombre: str = "Persona") -> AuditPersona:
         return AuditPersona(id_persona=id_persona, nombre=nombre, fecha=datetime.now(UTC))
+
+    @classmethod
+    def chequeo(cls, resultado=ResultadoChequeo.ENCONTRADO, observacion=None, por="u7") -> ChequeoItem:
+        return ChequeoItem(resultado=resultado, observacion=observacion, por=cls.audit(por, "Admin"))
+
+    @staticmethod
+    def sello(id_persona: str = "u7", nombre: str = "Admin", correo: str = "admin@example.com") -> SelloActa:
+        return SelloActa(id_persona=id_persona, nombre=nombre, correo=correo, fecha=datetime.now(UTC))
+
+    @classmethod
+    def acta(cls, **overrides) -> ActaMovimiento:
+        valores = dict(
+            id="acta-1",
+            tipo=TipoActa.SALIDA,
+            numero=1,
+            lineas=[LineaActa(activo_id="a1", resultado=ResultadoChequeo.ENCONTRADO)],
+            cerrada_por=cls.sello(),
+            archivo_id="archivo-1",
+        )
+        valores.update(overrides)
+        return ActaMovimiento(**valores)
 
     @staticmethod
     def item(**overrides) -> ItemMovimiento:

@@ -26,6 +26,9 @@ class NombresReferenciasMovimiento:
     activos: dict[str, ActivoNombreMovimiento] = field(default_factory=dict)
     usuarios: dict[str, str] = field(default_factory=dict)
 
+    # Correo de cada usuario: va en el sello de las actas.
+    correos: dict[str, str] = field(default_factory=dict)
+
     def responsables_actuales(self) -> dict[str, str | None]:
         return {activo_id: activo.responsable_id for activo_id, activo in self.activos.items()}
 

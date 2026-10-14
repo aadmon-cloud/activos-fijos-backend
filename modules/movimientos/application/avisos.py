@@ -10,6 +10,7 @@ from enum import Enum
 
 from modules.movimientos.application.ports.activo_movimiento_port import ActivoResumenMovimiento
 from modules.movimientos.domain.entities import (
+    ActaMovimiento,
     EstadoItemMovimiento,
     EstadoMovimiento,
     ItemMovimiento,
@@ -42,6 +43,7 @@ class EventoMovimiento(str, Enum):
     DEVOLUCION_CONFIRMADA = "devolucion_confirmada"
     BAJA_EJECUTADA = "baja_ejecutada"
     RECORDATORIO_DEVOLUCION = "recordatorio_devolucion"
+    ACTA_ACEPTADA = "acta_aceptada"
 
 
 @dataclass(frozen=True)
@@ -108,10 +110,24 @@ def construir_aviso(
     evento: EventoMovimiento,
     movimiento: Movimiento,
     activos: Mapping[str, ActivoResumenMovimiento],
+    acta: ActaMovimiento | None = None,
 ) -> Aviso:
     tipo = _ETIQUETA_TIPO.get(movimiento.tipo, movimiento.tipo.value)
     todos = movimiento.items
     lista, titulo = _lista(todos, activos), _titulo(todos, activos)
+
+    if evento == EventoMovimiento.ACTA_ACEPTADA and acta is not None:
+        quien = acta.aceptada_por.nombre if acta.aceptada_por else "El responsable"
+
+        return Aviso(
+            _sin_repetidos([*_ROLES_ADMINISTRADORES, *_participantes(movimiento)]),
+            f"Acta de {acta.tipo.value} No. {acta.numero} aceptada: {titulo}",
+            _cuerpo(
+                movimiento,
+                f"{quien} acepto el acta de {acta.tipo.value} No. {acta.numero} de {tipo}. "
+                "El acta quedo completa, con el sello de ambos, y se puede descargar en el sistema.",
+            ),
+        )
 
     if evento == EventoMovimiento.SOLICITADO:
         texto = f"{movimiento.creado_por.nombre} solicito {tipo} de: {lista}.\n\n{movimiento.descripcion}"
@@ -175,7 +191,10 @@ def construir_aviso(
     if evento == EventoMovimiento.SALIDA_CONFIRMADA:
         salieron = _con_estado(movimiento, EstadoItemMovimiento.EN_CURSO, EstadoItemMovimiento.DEVOLUCION_SOLICITADA)
         extra = (
-            "El comprobante esta disponible para descargar en el sistema." if movimiento.comprobante_archivo_id else ""
+            "El acta de salida esta disponible en el sistema. Quien retira los activos debe aceptarla para que quede "
+            "la constancia."
+            if movimiento.actas
+            else ""
         )
 
         return Aviso(
@@ -210,7 +229,15 @@ def construir_aviso(
             _cuerpo(
                 movimiento,
                 f"Fueron recibidos de vuelta y volvieron a su responsable: {_lista(devueltos, activos)}.",
-                f"Novedades al recibirlos:\n{novedades}" if novedades else "",
+                "\n\n".join(
+                    parte
+                    for parte in (
+                        f"Novedades al recibirlos:\n{novedades}" if novedades else "",
+                        "El acta de ingreso esta disponible en el sistema. Quien devuelve los activos debe aceptarla "
+                        "para que quede la constancia.",
+                    )
+                    if parte
+                ),
             ),
         )
 
@@ -241,8 +268,9 @@ async def avisar(
     evento: EventoMovimiento,
     movimiento: Movimiento,
     activos: Mapping[str, ActivoResumenMovimiento],
+    acta: ActaMovimiento | None = None,
 ) -> None:
-    aviso = construir_aviso(evento, movimiento, activos)
+    aviso = construir_aviso(evento, movimiento, activos, acta)
 
     await notificador.notificar(
         destinatarios=aviso.destinatarios, asunto=aviso.asunto, cuerpo=aviso.cuerpo

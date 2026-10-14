@@ -2,15 +2,56 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from modules.movimientos.domain.entities import (
+    ActaMovimiento,
+    ChequeoItem,
     EstadoItemMovimiento,
     EstadoMovimiento,
     EtapaRechazo,
     ItemMovimiento,
+    LineaActa,
     Movimiento,
+    ResultadoChequeo,
     SentidoPrestamo,
+    TipoActa,
     TipoMovimiento,
 )
 from shared.domain.entities.audit import AuditPersona
+
+
+@dataclass
+class ChequeoItemDTO:
+    resultado: ResultadoChequeo
+    observacion: str | None
+    por_nombre: str
+    fecha: datetime
+
+
+@dataclass
+class LineaActaDTO:
+    activo_id: str
+    resultado: ResultadoChequeo
+    observacion: str | None
+
+    # Solo en las consultas: nombre e inventario vigentes del activo.
+    activo_nombre: str | None = None
+    activo_numero_inventario: str | None = None
+
+
+@dataclass
+class ActaDTO:
+    id: str
+    tipo: TipoActa
+    numero: int
+    fecha_cierre: datetime
+    cerrada_por_nombre: str
+    cerrada_por_correo: str
+    aceptada_por_nombre: str | None
+    aceptada_por_correo: str | None
+    fecha_aceptacion: datetime | None
+    lineas: list[LineaActaDTO]
+
+    # Solo en el detalle: si el usuario con sesion puede aceptarla ahora.
+    puede_aceptar: bool = False
 
 
 @dataclass
@@ -27,6 +68,8 @@ class ItemMovimientoDTO:
     recibido_por_nombre: str | None
     fecha_devolucion_real: datetime | None
     novedad_devolucion: str | None
+    chequeo_salida: ChequeoItemDTO | None = None
+    chequeo_ingreso: ChequeoItemDTO | None = None
 
     # Solo en las consultas (listado y detalle): nombres vigentes y lo que el usuario puede hacer con este activo.
     activo_nombre: str | None = None
@@ -55,6 +98,7 @@ class MovimientoDTO:
     creado_por_id: str
     creado_por_nombre: str
     fecha_creacion: datetime
+    actas: list[ActaDTO] = field(default_factory=list)
 
     # Solo en las consultas (listado y detalle).
     usuario_destino_nombre: str | None = None
@@ -67,6 +111,39 @@ def _nombre(audit: AuditPersona | None) -> str | None:
 
 def _fecha(audit: AuditPersona | None) -> datetime | None:
     return audit.fecha if audit else None
+
+
+def _chequeo_a_dto(chequeo: ChequeoItem | None) -> ChequeoItemDTO | None:
+    if chequeo is None:
+        return None
+
+    return ChequeoItemDTO(
+        resultado=chequeo.resultado,
+        observacion=chequeo.observacion,
+        por_nombre=chequeo.por.nombre,
+        fecha=chequeo.por.fecha,
+    )
+
+
+def _linea_a_dto(linea: LineaActa) -> LineaActaDTO:
+    return LineaActaDTO(activo_id=linea.activo_id, resultado=linea.resultado, observacion=linea.observacion)
+
+
+def acta_a_dto(acta: ActaMovimiento) -> ActaDTO:
+    aceptada = acta.aceptada_por
+
+    return ActaDTO(
+        id=acta.id,
+        tipo=acta.tipo,
+        numero=acta.numero,
+        fecha_cierre=acta.cerrada_por.fecha,
+        cerrada_por_nombre=acta.cerrada_por.nombre,
+        cerrada_por_correo=acta.cerrada_por.correo,
+        aceptada_por_nombre=aceptada.nombre if aceptada else None,
+        aceptada_por_correo=aceptada.correo if aceptada else None,
+        fecha_aceptacion=aceptada.fecha if aceptada else None,
+        lineas=[_linea_a_dto(linea) for linea in acta.lineas],
+    )
 
 
 def item_a_dto(item: ItemMovimiento) -> ItemMovimientoDTO:
@@ -83,6 +160,8 @@ def item_a_dto(item: ItemMovimiento) -> ItemMovimientoDTO:
         recibido_por_nombre=_nombre(item.recibido_por),
         fecha_devolucion_real=item.fecha_devolucion_real,
         novedad_devolucion=item.novedad_devolucion,
+        chequeo_salida=_chequeo_a_dto(item.chequeo_salida),
+        chequeo_ingreso=_chequeo_a_dto(item.chequeo_ingreso),
     )
 
 
@@ -106,4 +185,5 @@ def movimiento_a_dto(movimiento: Movimiento) -> MovimientoDTO:
         creado_por_id=movimiento.creado_por.id_persona,
         creado_por_nombre=movimiento.creado_por.nombre,
         fecha_creacion=movimiento.creado_por.fecha,
+        actas=[acta_a_dto(acta) for acta in movimiento.actas],
     )

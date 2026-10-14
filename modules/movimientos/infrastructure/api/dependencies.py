@@ -1,15 +1,20 @@
 from functools import lru_cache
 
 from modules.movimientos.application.ports.activo_movimiento_port import ActivoMovimientoPort
-from modules.movimientos.application.ports.generador_comprobante_port import (
-    GeneradorComprobantePort,
-)
+from modules.movimientos.application.emisor_actas import EmisorActas
+from modules.movimientos.application.ports.generador_acta_port import GeneradorActaPort
 from modules.movimientos.application.ports.movimiento_repository import MovimientoRepositoryPort
 from modules.movimientos.application.ports.resolutor_nombres_port import (
     ResolutorNombresMovimientoPort,
 )
 from modules.movimientos.application.ports.verificador_usuario_port import VerificadorUsuarioPort
+from modules.movimientos.application.services.aceptar_acta_movimiento import (
+    AceptarActaMovimientoService,
+)
 from modules.movimientos.application.services.aprobar_movimiento import AprobarMovimientoService
+from modules.movimientos.application.services.chequear_item_movimiento import (
+    ChequearItemMovimientoService,
+)
 from modules.movimientos.application.services.confirmar_devolucion_movimiento import (
     ConfirmarDevolucionMovimientoService,
 )
@@ -20,6 +25,9 @@ from modules.movimientos.application.services.ejecutar_baja_movimiento import (
     EjecutarBajaMovimientoService,
 )
 from modules.movimientos.application.services.listar_movimientos import ListarMovimientosService
+from modules.movimientos.application.services.obtener_acta_movimiento import (
+    ObtenerActaMovimientoService,
+)
 from modules.movimientos.application.services.obtener_comprobante_movimiento import (
     ObtenerComprobanteMovimientoService,
 )
@@ -46,9 +54,7 @@ from modules.movimientos.infrastructure.persistence.mongo.resolutor_nombres_adap
 from modules.movimientos.infrastructure.persistence.mongo.verificador_usuario_adapter import (
     MongoVerificadorUsuario,
 )
-from modules.movimientos.infrastructure.reportes.generador_comprobante_pdf import (
-    GeneradorComprobantePdf,
-)
+from modules.movimientos.infrastructure.reportes.generador_acta_pdf import GeneradorActaPdf
 from modules.notificaciones.infrastructure.composicion import get_notificador
 from shared.application.file_storage.ports import AlmacenArchivosPort
 from shared.infrastructure.persistence.mongo.almacen_archivos_gridfs import (
@@ -79,13 +85,21 @@ def get_resolutor_nombres() -> ResolutorNombresMovimientoPort:
 
 
 @lru_cache(maxsize=1)
-def get_generador_comprobante() -> GeneradorComprobantePort:
-    return GeneradorComprobantePdf()
+def get_generador_acta() -> GeneradorActaPort:
+    return GeneradorActaPdf()
 
 
 @lru_cache(maxsize=1)
 def get_almacen_archivos() -> AlmacenArchivosPort:
     return MongoAlmacenArchivosGridFS(bucket_name=_BUCKET_ARCHIVOS)
+
+
+def get_emisor_actas() -> EmisorActas:
+    return EmisorActas(
+        generador=get_generador_acta(),
+        almacen_archivos=get_almacen_archivos(),
+        resolutor_nombres=get_resolutor_nombres(),
+    )
 
 
 def get_solicitar_movimiento_service() -> SolicitarMovimientoService:
@@ -117,10 +131,32 @@ def get_confirmar_salida_movimiento_service() -> ConfirmarSalidaMovimientoServic
     return ConfirmarSalidaMovimientoService(
         movimiento_repository=get_movimiento_repository(),
         activo_movimiento=get_activo_movimiento(),
-        resolutor_nombres=get_resolutor_nombres(),
-        generador_comprobante=get_generador_comprobante(),
-        almacen_archivos=get_almacen_archivos(),
+        emisor_actas=get_emisor_actas(),
         notificador=get_notificador(),
+    )
+
+
+def get_chequear_item_movimiento_service() -> ChequearItemMovimientoService:
+    return ChequearItemMovimientoService(
+        movimiento_repository=get_movimiento_repository(),
+        activo_movimiento=get_activo_movimiento(),
+    )
+
+
+def get_aceptar_acta_movimiento_service() -> AceptarActaMovimientoService:
+    return AceptarActaMovimientoService(
+        movimiento_repository=get_movimiento_repository(),
+        activo_movimiento=get_activo_movimiento(),
+        emisor_actas=get_emisor_actas(),
+        notificador=get_notificador(),
+    )
+
+
+def get_obtener_acta_movimiento_service() -> ObtenerActaMovimientoService:
+    return ObtenerActaMovimientoService(
+        movimiento_repository=get_movimiento_repository(),
+        almacen_archivos=get_almacen_archivos(),
+        activo_movimiento=get_activo_movimiento(),
     )
 
 
@@ -136,6 +172,7 @@ def get_confirmar_devolucion_movimiento_service() -> ConfirmarDevolucionMovimien
     return ConfirmarDevolucionMovimientoService(
         movimiento_repository=get_movimiento_repository(),
         activo_movimiento=get_activo_movimiento(),
+        emisor_actas=get_emisor_actas(),
         notificador=get_notificador(),
     )
 

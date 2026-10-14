@@ -1,11 +1,11 @@
+from dataclasses import replace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from modules.movimientos.application.dto.acciones_movimiento_dto import (
-    ConfirmarDevolucionDTO,
-    ReciboActivoDTO,
-)
+from modules.movimientos.application.dto.acciones_movimiento_dto import ConfirmarDevolucionDTO
+from modules.movimientos.application.emisor_actas import EmisorActas
+from modules.movimientos.application.ports.resolutor_nombres_port import NombresReferenciasMovimiento
 from modules.movimientos.application.services.confirmar_devolucion_movimiento import (
     ConfirmarDevolucionMovimientoService,
 )
@@ -15,25 +15,34 @@ from modules.movimientos.domain.entities import (
 from modules.movimientos.domain.entities import (
     EstadoMovimiento as E,
 )
+from modules.movimientos.domain.entities import ResultadoChequeo as R
+from modules.movimientos.domain.entities import TipoActa
 from modules.movimientos.domain.errors import (
-    ActivoNoPerteneceAlMovimientoError,
     MovimientoNoEncontradoError,
-    ObservacionDeNovedadObligatoriaError,
+    NingunActivoChequeadoError,
     OperacionSobreActivoFallidaError,
     TransicionEstadoMovimientoInvalidaError,
 )
 
 
-def _dto(recibos=None) -> ConfirmarDevolucionDTO:
-    return ConfirmarDevolucionDTO(id_movimiento="m1", actor_id="u7", actor_nombre="Admin", recibos=recibos)
+def _dto() -> ConfirmarDevolucionDTO:
+    return ConfirmarDevolucionDTO(
+        id_movimiento="m1", actor_id="u7", actor_nombre="Admin", actor_correo="admin@example.com"
+    )
 
 
-def _movimiento(fabrica, estados=(I.EN_CURSO, I.EN_CURSO), **overrides):
-    items = [
-        fabrica.item(activo_id=f"a{n}", responsable_original_id="u1", estado=estado)
-        for n, estado in enumerate(estados, start=1)
+def _movimiento(fabrica, items=((I.EN_CURSO, R.ENCONTRADO),) * 2, **overrides):
+    """Cada item es (estado, resultado del chequeo de ingreso); un resultado `None` es un activo sin chequear."""
+    lista = [
+        fabrica.item(
+            activo_id=f"a{n}",
+            responsable_original_id="u1",
+            estado=estado,
+            chequeo_ingreso=fabrica.chequeo(resultado) if resultado else None,
+        )
+        for n, (estado, resultado) in enumerate(items, start=1)
     ]
-    return fabrica.movimiento(items=items, estado=E.EN_CURSO, usuario_destino_id="u2", **overrides)
+    return fabrica.movimiento(items=lista, estado=E.EN_CURSO, usuario_destino_id="u2", **overrides)
 
 
 def _servicio(fabrica, movimiento, cambiar_estado=True, cambiar_responsable=True):
@@ -46,12 +55,23 @@ def _servicio(fabrica, movimiento, cambiar_estado=True, cambiar_responsable=True
     activo_movimiento.obtener_resumenes.return_value = {
         item.activo_id: fabrica.resumen(id=item.activo_id) for item in movimiento.items
     }
+    resolutor = AsyncMock()
+    resolutor.resolver.return_value = NombresReferenciasMovimiento(
+        usuarios={"u2": "Destino"}, correos={"u2": "destino@example.com"}
+    )
+    generador = AsyncMock()
+    generador.generar_pdf.return_value = b"%PDF"
+    almacen = AsyncMock()
+    almacen.guardar.return_value = "archivo-9"
     notificador = AsyncMock()
+    service = ConfirmarDevolucionMovimientoService(
+        repo, activo_movimiento, EmisorActas(generador, almacen, resolutor), notificador
+    )
 
-    return ConfirmarDevolucionMovimientoService(repo, activo_movimiento, notificador), repo, activo_movimiento, notificador
+    return service, repo, activo_movimiento, notificador
 
 
-async def test_sin_recibos_se_reciben_todos_sin_novedad(fabrica):
+async def test_se_reciben_todos_los_chequeados_como_encontrados(fabrica):
     service, repo, activo_movimiento, notificador = _servicio(fabrica, _movimiento(fabrica))
 
     await service.ejecutar(_dto())
@@ -67,7 +87,7 @@ async def test_sin_recibos_se_reciben_todos_sin_novedad(fabrica):
 
 
 async def test_el_activo_vuelve_a_disponible_y_a_su_responsable_original(fabrica):
-    service, _, activo_movimiento, _ = _servicio(fabrica, _movimiento(fabrica, (I.EN_CURSO,)))
+    service, _, activo_movimiento, _ = _servicio(fabrica, _movimiento(fabrica, ((I.EN_CURSO, R.ENCONTRADO),)))
 
     await service.ejecutar(_dto())
 
@@ -76,16 +96,12 @@ async def test_el_activo_vuelve_a_disponible_y_a_su_responsable_original(fabrica
 
 
 async def test_una_novedad_queda_en_el_movimiento_y_en_el_historial_del_activo(fabrica):
-    service, repo, activo_movimiento, _ = _servicio(fabrica, _movimiento(fabrica))
+    movimiento = _movimiento(fabrica)
+    con_novedad = replace(movimiento.items[1], chequeo_ingreso=fabrica.chequeo(R.CON_NOVEDAD, "Pantalla rayada"))
+    movimiento = replace(movimiento, items=[movimiento.items[0], con_novedad])
+    service, repo, activo_movimiento, _ = _servicio(fabrica, movimiento)
 
-    await service.ejecutar(
-        _dto(
-            [
-                ReciboActivoDTO("a1"),
-                ReciboActivoDTO("a2", con_novedad=True, observacion="  Pantalla rayada  "),
-            ]
-        )
-    )
+    await service.ejecutar(_dto())
 
     guardado = repo.guardar.call_args.args[0]
     assert guardado.item("a1").novedad_devolucion is None
@@ -97,30 +113,64 @@ async def test_una_novedad_queda_en_el_movimiento_y_en_el_historial_del_activo(f
     assert argumentos[2] == "m1"
 
 
-async def test_la_novedad_exige_describirla(fabrica):
-    service, repo, activo_movimiento, _ = _servicio(fabrica, _movimiento(fabrica, (I.EN_CURSO,)))
+async def test_lo_no_encontrado_o_sin_chequear_sigue_fuera_y_se_limpia_su_marca(fabrica):
+    movimiento = _movimiento(
+        fabrica, ((I.EN_CURSO, R.ENCONTRADO), (I.EN_CURSO, R.NO_ENCONTRADO), (I.DEVOLUCION_SOLICITADA, None))
+    )
+    service, repo, activo_movimiento, _ = _servicio(fabrica, movimiento)
 
-    with pytest.raises(ObservacionDeNovedadObligatoriaError):
-        await service.ejecutar(_dto([ReciboActivoDTO("a1", con_novedad=True, observacion="  ")]))
+    await service.ejecutar(_dto())
+
+    guardado = repo.guardar.call_args.args[0]
+    assert [i.estado for i in guardado.items] == [I.DEVUELTO, I.EN_CURSO, I.DEVOLUCION_SOLICITADA]
+    assert guardado.item("a2").chequeo_ingreso is None
+    assert guardado.estado == E.EN_CURSO
+    assert guardado.fecha_devolucion_real is None
+    assert activo_movimiento.cambiar_estado.await_count == 1
+
+
+async def test_se_genera_el_acta_de_ingreso_con_lo_recibido_y_lo_que_sigue_fuera(fabrica):
+    movimiento = _movimiento(fabrica, ((I.EN_CURSO, R.ENCONTRADO), (I.EN_CURSO, None)))
+    movimiento = replace(movimiento, actas=[fabrica.acta()])
+    service, repo, _, _ = _servicio(fabrica, movimiento)
+
+    await service.ejecutar(_dto())
+
+    acta = repo.guardar.call_args.args[0].actas[-1]
+    assert (acta.tipo, acta.numero) == (TipoActa.INGRESO, 1)
+    assert [(l.activo_id, l.resultado) for l in acta.lineas] == [("a1", R.ENCONTRADO), ("a2", R.NO_ENCONTRADO)]
+    assert acta.lineas[1].observacion
+    assert acta.cerrada_por.correo == "admin@example.com"
+    assert acta.aceptada_por is None
+    # Las actas anteriores se conservan.
+    assert len(repo.guardar.call_args.args[0].actas) == 2
+
+
+async def test_el_segundo_ingreso_numera_su_acta_aparte(fabrica):
+    movimiento = _movimiento(fabrica, ((I.EN_CURSO, R.ENCONTRADO),))
+    previas = [fabrica.acta(id="s1"), fabrica.acta(id="i1", tipo=TipoActa.INGRESO)]
+    movimiento = replace(movimiento, actas=previas)
+    service, repo, _, _ = _servicio(fabrica, movimiento)
+
+    await service.ejecutar(_dto())
+
+    assert repo.guardar.call_args.args[0].actas[-1].numero == 2
+
+
+async def test_sin_ningun_activo_encontrado_no_se_cierra_el_chequeo(fabrica):
+    service, repo, activo_movimiento, _ = _servicio(
+        fabrica, _movimiento(fabrica, ((I.EN_CURSO, R.NO_ENCONTRADO), (I.EN_CURSO, None)))
+    )
+
+    with pytest.raises(NingunActivoChequeadoError):
+        await service.ejecutar(_dto())
 
     repo.guardar.assert_not_called()
     activo_movimiento.cambiar_estado.assert_not_called()
 
 
-async def test_se_pueden_recibir_solo_algunos_y_el_movimiento_sigue_en_curso(fabrica):
-    service, repo, _, _ = _servicio(fabrica, _movimiento(fabrica))
-
-    await service.ejecutar(_dto([ReciboActivoDTO("a1")]))
-
-    guardado = repo.guardar.call_args.args[0]
-    assert guardado.item("a1").estado == I.DEVUELTO
-    assert guardado.item("a2").estado == I.EN_CURSO
-    assert guardado.estado == E.EN_CURSO
-    assert guardado.fecha_devolucion_real is None
-
-
 async def test_se_recibe_tambien_lo_que_ya_se_habia_pedido_de_vuelta(fabrica):
-    service, repo, _, _ = _servicio(fabrica, _movimiento(fabrica, (I.DEVOLUCION_SOLICITADA,)))
+    service, repo, _, _ = _servicio(fabrica, _movimiento(fabrica, ((I.DEVOLUCION_SOLICITADA, R.ENCONTRADO),)))
 
     await service.ejecutar(_dto())
 
@@ -128,7 +178,9 @@ async def test_se_recibe_tambien_lo_que_ya_se_habia_pedido_de_vuelta(fabrica):
 
 
 async def test_lo_ya_rechazado_o_devuelto_no_se_vuelve_a_recibir(fabrica):
-    service, repo, _, _ = _servicio(fabrica, _movimiento(fabrica, (I.EN_CURSO, I.RECHAZADO, I.DEVUELTO)))
+    service, repo, _, _ = _servicio(
+        fabrica, _movimiento(fabrica, ((I.EN_CURSO, R.ENCONTRADO), (I.RECHAZADO, None), (I.DEVUELTO, None)))
+    )
 
     await service.ejecutar(_dto())
 
@@ -136,15 +188,8 @@ async def test_lo_ya_rechazado_o_devuelto_no_se_vuelve_a_recibir(fabrica):
     assert [i.estado for i in guardado.items] == [I.DEVUELTO, I.RECHAZADO, I.DEVUELTO]
 
 
-async def test_un_activo_ajeno_al_movimiento_se_rechaza(fabrica):
-    service, _, _, _ = _servicio(fabrica, _movimiento(fabrica))
-
-    with pytest.raises(ActivoNoPerteneceAlMovimientoError):
-        await service.ejecutar(_dto([ReciboActivoDTO("zzz")]))
-
-
 async def test_un_movimiento_sin_activos_fuera_no_admite_devolucion(fabrica):
-    service, _, _, _ = _servicio(fabrica, _movimiento(fabrica, (I.PENDIENTE_ADMIN,)))
+    service, _, _, _ = _servicio(fabrica, _movimiento(fabrica, ((I.PENDIENTE_ADMIN, None),)))
 
     with pytest.raises(TransicionEstadoMovimientoInvalidaError):
         await service.ejecutar(_dto())
@@ -165,7 +210,7 @@ async def test_si_falla_el_segundo_activo_se_deshace_el_primero(fabrica):
 
 async def test_si_falla_el_responsable_se_deshace_el_estado(fabrica):
     service, repo, activo_movimiento, _ = _servicio(
-        fabrica, _movimiento(fabrica, (I.EN_CURSO,)), cambiar_responsable=False
+        fabrica, _movimiento(fabrica, ((I.EN_CURSO, R.ENCONTRADO),)), cambiar_responsable=False
     )
 
     with pytest.raises(OperacionSobreActivoFallidaError):
@@ -176,10 +221,14 @@ async def test_si_falla_el_responsable_se_deshace_el_estado(fabrica):
 
 
 async def test_si_no_se_puede_dejar_la_nota_la_devolucion_igual_se_confirma(fabrica):
-    service, repo, activo_movimiento, _ = _servicio(fabrica, _movimiento(fabrica, (I.EN_CURSO,)))
+    movimiento = _movimiento(fabrica, ((I.EN_CURSO, None),))
+    movimiento = replace(
+        movimiento, items=[replace(movimiento.items[0], chequeo_ingreso=fabrica.chequeo(R.CON_NOVEDAD, "Roto"))]
+    )
+    service, repo, activo_movimiento, _ = _servicio(fabrica, movimiento)
     activo_movimiento.registrar_nota.side_effect = RuntimeError("mongo caido")
 
-    await service.ejecutar(_dto([ReciboActivoDTO("a1", con_novedad=True, observacion="Roto")]))
+    await service.ejecutar(_dto())
 
     assert repo.guardar.call_args.args[0].item("a1").novedad_devolucion == "Roto"
 

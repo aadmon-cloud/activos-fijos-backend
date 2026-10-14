@@ -3,28 +3,29 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from modules.movimientos.application.avisos import EventoMovimiento, avisar
-from modules.movimientos.application.dto.acciones_movimiento_dto import (
-    ConfirmarDevolucionDTO,
-    ReciboActivoDTO,
-)
+from modules.movimientos.application.dto.acciones_movimiento_dto import ConfirmarDevolucionDTO
 from modules.movimientos.application.dto.movimiento_dto import MovimientoDTO, movimiento_a_dto
+from modules.movimientos.application.emisor_actas import EmisorActas
 from modules.movimientos.application.ports.activo_movimiento_port import ActivoMovimientoPort
 from modules.movimientos.application.ports.movimiento_repository import MovimientoRepositoryPort
 from modules.movimientos.application.seleccion_activos import (
     aplicar_a_activos,
     ahora_audit,
-    elegir_activos,
     reemplazar_items,
 )
 from modules.movimientos.domain.entities import (
     EstadoItemMovimiento,
     EstadoMovimiento,
     ItemMovimiento,
+    LineaActa,
     Movimiento,
+    ResultadoChequeo,
+    SelloActa,
+    TipoActa,
 )
 from modules.movimientos.domain.errors import (
     MovimientoNoEncontradoError,
-    ObservacionDeNovedadObligatoriaError,
+    NingunActivoChequeadoError,
     OperacionSobreActivoFallidaError,
     TransicionEstadoMovimientoInvalidaError,
 )
@@ -35,20 +36,26 @@ logger = logging.getLogger(__name__)
 
 _ESTADO_DISPONIBLE = "disponible"
 _ESTADO_PRESTADO = "prestado"
+_OBSERVACION_NO_DEVUELTO = "Sigue fuera: no se recibio en este ingreso."
 
 
 class ConfirmarDevolucionMovimientoService:
-    """Administracion recibe de vuelta los activos (todos o algunos), cada uno bien o con una novedad. El activo
-    vuelve a `disponible` y a su responsable original; una novedad queda en el historial del activo."""
+    """Cierra el chequeo de ingreso: se reciben de vuelta los activos chequeados como encontrados (o con novedad).
+
+    El activo vuelve a `disponible` y a su responsable original; una novedad queda en el historial del activo. Los
+    que no se encontraron (o no se chequearon) siguen fuera y se pueden recibir en otro ingreso. Se genera el acta
+    de ingreso con el sello de administracion; el del responsable queda pendiente hasta que la acepte."""
 
     def __init__(
         self,
         movimiento_repository: MovimientoRepositoryPort,
         activo_movimiento: ActivoMovimientoPort,
+        emisor_actas: EmisorActas,
         notificador: NotificadorPort,
     ):
         self._movimiento_repository = movimiento_repository
         self._activo_movimiento = activo_movimiento
+        self._emisor_actas = emisor_actas
         self._notificador = notificador
 
     async def ejecutar(self, dto: ConfirmarDevolucionDTO) -> MovimientoDTO:
@@ -56,19 +63,15 @@ class ConfirmarDevolucionMovimientoService:
         if movimiento is None:
             raise MovimientoNoEncontradoError(dto.id_movimiento)
 
-        invalido = TransicionEstadoMovimientoInvalidaError(movimiento.estado.value, "devuelto")
         devolvibles = [i for i in movimiento.items if i.estado in ESTADOS_ITEM_DEVOLVIBLES]
         if not devolvibles:
-            raise invalido
+            raise TransicionEstadoMovimientoInvalidaError(movimiento.estado.value, "devuelto")
 
-        recibos = self._recibos(dto, devolvibles)
-        recibidos = elegir_activos(movimiento, devolvibles, [r.activo_id for r in recibos], invalido)
-        por_activo = {recibo.activo_id: recibo for recibo in recibos}
+        recibidos = [i for i in devolvibles if _se_recibe(i)]
+        if not recibidos:
+            raise NingunActivoChequeadoError()
 
-        for recibo in recibos:
-            if recibo.con_novedad and not (recibo.observacion or "").strip():
-                raise ObservacionDeNovedadObligatoriaError(recibo.activo_id)
-
+        siguen_fuera = [i for i in devolvibles if not _se_recibe(i)]
         audit = ahora_audit(dto.actor_id, dto.actor_nombre)
         ahora = datetime.now(UTC)
 
@@ -81,14 +84,17 @@ class ConfirmarDevolucionMovimientoService:
 
         cambios: dict[str, ItemMovimiento] = {}
         for item in recibidos:
-            recibo = por_activo[item.activo_id]
+            chequeo = item.chequeo_ingreso
             cambios[item.activo_id] = replace(
                 item,
                 estado=EstadoItemMovimiento.DEVUELTO,
                 recibido_por=audit,
                 fecha_devolucion_real=ahora,
-                novedad_devolucion=(recibo.observacion or "").strip() if recibo.con_novedad else None,
+                novedad_devolucion=chequeo.observacion if chequeo.resultado == ResultadoChequeo.CON_NOVEDAD else None,
             )
+        for item in siguen_fuera:
+            # Se limpia la marca: en el siguiente ingreso se vuelve a chequear desde cero.
+            cambios[item.activo_id] = replace(item, chequeo_ingreso=None)
 
         items = reemplazar_items(movimiento, cambios)
         estado = calcular_estado(movimiento.tipo, items, movimiento.estado)
@@ -100,21 +106,36 @@ class ConfirmarDevolucionMovimientoService:
             actualizado_por=audit,
         )
 
-        guardado = await self._movimiento_repository.guardar(devuelto)
-        await self._dejar_novedades_en_el_historial(guardado, cambios.values(), dto)
+        lineas = [
+            LineaActa(
+                activo_id=item.activo_id,
+                resultado=item.chequeo_ingreso.resultado,
+                observacion=item.chequeo_ingreso.observacion,
+            )
+            for item in recibidos
+        ] + [
+            LineaActa(
+                activo_id=item.activo_id,
+                resultado=ResultadoChequeo.NO_ENCONTRADO,
+                observacion=(item.chequeo_ingreso.observacion if item.chequeo_ingreso else None)
+                or _OBSERVACION_NO_DEVUELTO,
+            )
+            for item in siguen_fuera
+        ]
+        acta = await self._emisor_actas.emitir(
+            devuelto,
+            TipoActa.INGRESO,
+            lineas,
+            SelloActa(id_persona=dto.actor_id, nombre=dto.actor_nombre, correo=dto.actor_correo, fecha=audit.fecha),
+        )
+
+        guardado = await self._movimiento_repository.guardar(replace(devuelto, actas=[*devuelto.actas, acta]))
+        await self._dejar_novedades_en_el_historial(guardado, [cambios[i.activo_id] for i in recibidos], dto)
 
         resumenes = await self._activo_movimiento.obtener_resumenes(movimiento.activo_ids)
         await avisar(self._notificador, EventoMovimiento.DEVOLUCION_CONFIRMADA, guardado, resumenes)
 
         return movimiento_a_dto(guardado)
-
-    @staticmethod
-    def _recibos(dto: ConfirmarDevolucionDTO, devolvibles: list[ItemMovimiento]) -> list[ReciboActivoDTO]:
-        """Sin recibos explicitos se reciben todos los activos que estan fuera, sin novedad."""
-        if dto.recibos is None:
-            return [ReciboActivoDTO(activo_id=item.activo_id) for item in devolvibles]
-
-        return list({recibo.activo_id: recibo for recibo in dto.recibos}.values())
 
     async def _devolver(
         self, item: ItemMovimiento, movimiento: Movimiento, dto: ConfirmarDevolucionDTO
@@ -165,6 +186,10 @@ class ConfirmarDevolucionMovimientoService:
                 logger.exception(
                     "No se pudo registrar la novedad de devolucion en el historial del activo %s", item.activo_id
                 )
+
+
+def _se_recibe(item: ItemMovimiento) -> bool:
+    return item.chequeo_ingreso is not None and item.chequeo_ingreso.resultado != ResultadoChequeo.NO_ENCONTRADO
 
 
 def _descripcion(movimiento: Movimiento) -> str:

@@ -46,7 +46,7 @@ async def test_resolver_arma_los_diccionarios_de_activos_y_usuarios():
     with patch(_RUTA) as mongo_manager_mock:
         mongo_manager_mock.get_database.return_value = _db(
             activos=[{"_id": activo_id, "nombre": "Laptop", "numero_inventario": "INV-1"}],
-            usuarios=[{"_id": usuario_id, "nombre": "Ana", "apellido": "Perez"}],
+            usuarios=[{"_id": usuario_id, "nombre": "Ana", "apellido": "Perez", "email": "ana@example.com"}],
         )
 
         resultado = await MongoResolutorNombresMovimiento().resolver(
@@ -56,6 +56,7 @@ async def test_resolver_arma_los_diccionarios_de_activos_y_usuarios():
     assert resultado.activos[str(activo_id)].nombre == "Laptop"
     assert resultado.activos[str(activo_id)].numero_inventario == "INV-1"
     assert resultado.usuarios[str(usuario_id)] == "Ana Perez"
+    assert resultado.correos[str(usuario_id)] == "ana@example.com"
 
 
 async def test_resolver_devuelve_el_responsable_actual_del_activo():

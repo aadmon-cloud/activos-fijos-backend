@@ -10,7 +10,12 @@ from modules.movimientos.application.ports.resolutor_nombres_port import (
     ResolutorNombresMovimientoPort,
 )
 from modules.movimientos.domain.errors import MovimientoNoEncontradoError
-from modules.movimientos.domain.permisos import acciones_de_item, acciones_permitidas, puede_ver
+from modules.movimientos.domain.permisos import (
+    acciones_de_item,
+    acciones_permitidas,
+    puede_aceptar_acta,
+    puede_ver,
+)
 
 
 class ObtenerMovimientoService:
@@ -56,6 +61,10 @@ class ObtenerMovimientoService:
         }
         acciones = acciones_permitidas(movimiento, dto.actor_id, dto.actor_rol, responsables)
 
+        aceptables = frozenset(
+            acta.id for acta in movimiento.actas if puede_aceptar_acta(movimiento, acta, dto.actor_id)
+        )
+
         return movimiento_con_nombres_a_dto(
-            movimiento_a_dto(movimiento), nombres, [a.value for a in acciones], por_activo
+            movimiento_a_dto(movimiento), nombres, [a.value for a in acciones], por_activo, aceptables
         )

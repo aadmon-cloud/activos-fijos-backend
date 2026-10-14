@@ -7,9 +7,8 @@ from modules.movimientos.application.ports.activo_movimiento_port import (
     ActivoMovimientoPort,
     ActivoResumenMovimiento,
 )
-from modules.movimientos.application.ports.generador_comprobante_port import (
-    GeneradorComprobantePort,
-)
+from modules.movimientos.application.emisor_actas import EmisorActas
+from modules.movimientos.application.ports.generador_acta_port import GeneradorActaPort
 from modules.movimientos.application.ports.movimiento_repository import MovimientoRepositoryPort
 from modules.movimientos.application.ports.resolutor_nombres_port import (
     ActivoNombreMovimiento,
@@ -17,7 +16,13 @@ from modules.movimientos.application.ports.resolutor_nombres_port import (
     ResolutorNombresMovimientoPort,
 )
 from modules.movimientos.application.ports.verificador_usuario_port import VerificadorUsuarioPort
+from modules.movimientos.application.services.aceptar_acta_movimiento import (
+    AceptarActaMovimientoService,
+)
 from modules.movimientos.application.services.aprobar_movimiento import AprobarMovimientoService
+from modules.movimientos.application.services.chequear_item_movimiento import (
+    ChequearItemMovimientoService,
+)
 from modules.movimientos.application.services.confirmar_devolucion_movimiento import (
     ConfirmarDevolucionMovimientoService,
 )
@@ -28,6 +33,9 @@ from modules.movimientos.application.services.ejecutar_baja_movimiento import (
     EjecutarBajaMovimientoService,
 )
 from modules.movimientos.application.services.listar_movimientos import ListarMovimientosService
+from modules.movimientos.application.services.obtener_acta_movimiento import (
+    ObtenerActaMovimientoService,
+)
 from modules.movimientos.application.services.obtener_comprobante_movimiento import (
     ObtenerComprobanteMovimientoService,
 )
@@ -45,11 +53,14 @@ from modules.movimientos.domain.entities import (
     Movimiento,
 )
 from modules.movimientos.infrastructure.api.dependencies import (
+    get_aceptar_acta_movimiento_service,
     get_aprobar_movimiento_service,
+    get_chequear_item_movimiento_service,
     get_confirmar_devolucion_movimiento_service,
     get_confirmar_salida_movimiento_service,
     get_ejecutar_baja_movimiento_service,
     get_listar_movimientos_service,
+    get_obtener_acta_movimiento_service,
     get_obtener_comprobante_movimiento_service,
     get_obtener_movimiento_service,
     get_rechazar_movimiento_service,
@@ -216,12 +227,18 @@ class _ResolutorFalso(ResolutorNombresMovimientoPort):
                 if a in referencias.activo_ids
             },
             usuarios={u: f"Nombre {u}" for u in referencias.usuario_ids},
+            correos={u: f"{u}@example.com" for u in referencias.usuario_ids},
         )
 
 
-class _GeneradorComprobanteFalso(GeneradorComprobantePort):
-    async def generar_pdf(self, movimiento, activos, usuario_destino_nombre) -> bytes:
-        return ("%PDF-comprobante:" + ",".join(activos)).encode()
+class _GeneradorActaFalso(GeneradorActaPort):
+    """El 'PDF' dice el tipo, los activos y si ya lleva el sello del responsable."""
+
+    async def generar_pdf(self, datos) -> bytes:
+        sello = "aceptada" if datos.acta.aceptada_por else "pendiente"
+        activos = ",".join(f"{linea.descripcion}={linea.resultado.value}" for linea in datos.lineas)
+
+        return f"%PDF-acta-{datos.acta.tipo.value}-{datos.acta.numero}:{sello}:{activos}".encode()
 
 
 class _AlmacenArchivosFalso(AlmacenArchivosPort):
@@ -270,6 +287,7 @@ class _Cliente:
         self.notificador = _NotificadorFalso()
         resolutor = _ResolutorFalso(self.activos)
         almacen = _AlmacenArchivosFalso()
+        emisor = EmisorActas(_GeneradorActaFalso(), almacen, resolutor)
         repo, activos, notificador = self.repo, self.activos, self.notificador
 
         sobrescribir = app.dependency_overrides
@@ -279,13 +297,20 @@ class _Cliente:
         sobrescribir[get_aprobar_movimiento_service] = lambda: AprobarMovimientoService(repo, activos, notificador)
         sobrescribir[get_rechazar_movimiento_service] = lambda: RechazarMovimientoService(repo, activos, notificador)
         sobrescribir[get_confirmar_salida_movimiento_service] = lambda: ConfirmarSalidaMovimientoService(
-            repo, activos, resolutor, _GeneradorComprobanteFalso(), almacen, notificador
+            repo, activos, emisor, notificador
+        )
+        sobrescribir[get_chequear_item_movimiento_service] = lambda: ChequearItemMovimientoService(repo, activos)
+        sobrescribir[get_aceptar_acta_movimiento_service] = lambda: AceptarActaMovimientoService(
+            repo, activos, emisor, notificador
+        )
+        sobrescribir[get_obtener_acta_movimiento_service] = lambda: ObtenerActaMovimientoService(
+            repo, almacen, activos
         )
         sobrescribir[get_solicitar_devolucion_movimiento_service] = lambda: SolicitarDevolucionMovimientoService(
             repo, activos, notificador
         )
         sobrescribir[get_confirmar_devolucion_movimiento_service] = lambda: ConfirmarDevolucionMovimientoService(
-            repo, activos, notificador
+            repo, activos, emisor, notificador
         )
         sobrescribir[get_ejecutar_baja_movimiento_service] = lambda: EjecutarBajaMovimientoService(
             repo, activos, notificador
@@ -310,6 +335,25 @@ class _Cliente:
 
     def post(self, *args, **kwargs):
         return self._http.post(*args, **kwargs)
+
+    def put(self, *args, **kwargs):
+        return self._http.put(*args, **kwargs)
+
+
+def _chequear(cliente, id_mov, activo_id, resultado="encontrado", observacion=None, usuario=ADMIN):
+    """Marca un activo en el chequeo de salida o de ingreso (la fase la define el estado del activo)."""
+    return cliente.como(usuario).put(
+        f"/api/movimientos/{id_mov}/items/{activo_id}/chequeo",
+        json={"resultado": resultado, "observacion": observacion},
+    )
+
+
+def _confirmar_salida(cliente, id_mov, *activos, **cuerpo):
+    """Chequea como encontrados los activos dados y cierra el chequeo de salida."""
+    for activo_id in activos:
+        assert _chequear(cliente, id_mov, activo_id).status_code == 200
+
+    return cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida", json=cuerpo or None)
 
 
 def _solicitar(cliente, usuario=SOLICITANTE, **cuerpo) -> str:
@@ -457,13 +501,20 @@ def test_flujo_completo_cada_responsable_aprueba_administracion_elige_y_se_devue
     respuesta = cliente.como(LUIS).post(f"/api/movimientos/{id_mov}/aprobar")
     assert respuesta.json()["data"]["estado"] == "aprobado_responsable"
 
-    # Administracion elige solo uno de los dos.
-    respuesta = cliente.como(ADMIN).post(
-        f"/api/movimientos/{id_mov}/confirmar-salida", json={"activo_ids": [A1], "motivo_no_incluidos": "Solo hay uno"}
-    )
+    # Administracion chequea la salida: A1 esta, A3 no se encuentra.
+    assert _chequear(cliente, id_mov, A1).status_code == 200
+    assert _chequear(cliente, id_mov, A3, "no_encontrado", "No estaba en la bodega").status_code == 200
+    respuesta = cliente.post(f"/api/movimientos/{id_mov}/confirmar-salida")
     assert respuesta.status_code == 200
     assert respuesta.json()["data"]["estado"] == "en_curso"
     assert _estados_items(respuesta) == {A1: "en_curso", A3: "rechazado"}
+    assert respuesta.json()["data"]["items"][1]["motivo_rechazo"] == "No estaba en la bodega"
+
+    # Se genero el acta de salida con el sello de administracion; falta el del responsable.
+    acta = respuesta.json()["data"]["actas"][0]
+    assert (acta["tipo"], acta["numero"]) == ("salida", 1)
+    assert acta["cerrada_por_correo"] == f"{ADMIN}@example.com"
+    assert acta["aceptada_por_nombre"] is None
     assert cliente.activos.activos[A1]["estado"] == "prestado"
     assert cliente.activos.activos[A1]["responsable"] == SOLICITANTE
     assert cliente.activos.activos[A3]["estado"] == "disponible"
@@ -473,15 +524,14 @@ def test_flujo_completo_cada_responsable_aprueba_administracion_elige_y_se_devue
     assert respuesta.status_code == 200
     assert _estados_items(respuesta)[A1] == "devolucion_solicitada"
 
-    # Administracion lo recibe con una novedad.
-    respuesta = cliente.como(ADMIN).post(
-        f"/api/movimientos/{id_mov}/confirmar-devolucion",
-        json={"recibos": [{"activo_id": A1, "con_novedad": True, "observacion": "Pantalla rayada"}]},
-    )
+    # Administracion chequea el ingreso: llega con una novedad.
+    assert _chequear(cliente, id_mov, A1, "con_novedad", "Pantalla rayada").status_code == 200
+    respuesta = cliente.post(f"/api/movimientos/{id_mov}/confirmar-devolucion")
     assert respuesta.status_code == 200
     datos = respuesta.json()["data"]
     assert datos["estado"] == "devuelto"
     assert datos["items"][0]["novedad_devolucion"] == "Pantalla rayada"
+    assert [(a["tipo"], a["numero"]) for a in datos["actas"]] == [("salida", 1), ("ingreso", 1)]
     assert cliente.activos.activos[A1]["estado"] == "disponible"
     assert cliente.activos.activos[A1]["responsable"] == ANA
     assert [a for a, _ in cliente.activos.notas] == [A1]
@@ -496,7 +546,7 @@ def test_prestar_un_activo_propio_solo_espera_a_administracion():
     assert detalle.json()["data"]["estado"] == "aprobado_responsable"
     assert _estados_items(detalle) == {A1: "pendiente_admin"}
 
-    cliente.post(f"/api/movimientos/{id_mov}/confirmar-salida")
+    _confirmar_salida(cliente, id_mov, A1)
     assert cliente.activos.activos[A1]["responsable"] == SOLICITANTE
 
 
@@ -548,48 +598,191 @@ def test_la_novedad_exige_describirla_mov_023():
     cliente = _Cliente()
     id_mov = _solicitar(cliente)
     cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
-    cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
 
-    respuesta = cliente.post(
-        f"/api/movimientos/{id_mov}/confirmar-devolucion",
-        json={"recibos": [{"activo_id": A1, "con_novedad": True, "observacion": ""}]},
-    )
+    respuesta = _chequear(cliente, id_mov, A1, "con_novedad", "  ")
 
     assert respuesta.status_code == 400
     assert respuesta.json()["code"] == "MOV-023"
 
 
-def test_administracion_recibe_sin_cuerpo_todo_lo_que_esta_fuera():
+def test_no_se_cierra_el_chequeo_sin_ningun_activo_encontrado_mov_029():
     cliente = _Cliente()
     id_mov = _solicitar(cliente, activo_ids=[A1, A2])
     cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
-    cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
+    _chequear(cliente, id_mov, A1, "no_encontrado")
 
-    respuesta = cliente.post(f"/api/movimientos/{id_mov}/confirmar-devolucion")
+    respuesta = cliente.post(f"/api/movimientos/{id_mov}/confirmar-salida")
 
-    assert respuesta.json()["data"]["estado"] == "devuelto"
-    assert {i["estado"] for i in respuesta.json()["data"]["items"]} == {"devuelto"}
-
-
-# --- salida a evento y comprobante ---
+    assert respuesta.status_code == 422
+    assert respuesta.json()["code"] == "MOV-029"
 
 
-def test_la_salida_a_evento_genera_el_comprobante_y_lo_descarga_quien_puede_verla():
+def test_lo_que_no_se_chequeo_no_sale_y_queda_rechazado_con_el_motivo_general():
     cliente = _Cliente()
-    id_mov = _solicitar(cliente, tipo="salida_evento", sentido=None, activo_ids=[A1, A2], evento_nombre="Feria")
+    id_mov = _solicitar(cliente, activo_ids=[A1, A2])
     cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
 
-    sin_generar = cliente.como(SOLICITANTE).get(f"/api/movimientos/{id_mov}/comprobante")
+    respuesta = _confirmar_salida(cliente, id_mov, A1, motivo_no_incluidos="Solo hay uno")
+
+    assert _estados_items(respuesta) == {A1: "en_curso", A2: "rechazado"}
+    assert respuesta.json()["data"]["items"][1]["motivo_rechazo"] == "Solo hay uno"
+
+
+def test_el_chequeo_se_puede_corregir_hasta_cerrarlo():
+    cliente = _Cliente()
+    id_mov = _solicitar(cliente)
+    cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
+
+    _chequear(cliente, id_mov, A1, "no_encontrado")
+    corregido = _chequear(cliente, id_mov, A1, "encontrado")
+
+    chequeo = corregido.json()["data"]["items"][0]["chequeo_salida"]
+    assert chequeo["resultado"] == "encontrado"
+    assert chequeo["por_nombre"] == f"Nombre {ADMIN}"
+    assert cliente.post(f"/api/movimientos/{id_mov}/confirmar-salida").status_code == 200
+
+
+def test_solo_administracion_chequea_y_solo_lo_que_esta_en_una_fase_de_chequeo():
+    cliente = _Cliente()
+    id_mov = _solicitar(cliente)
+
+    # Todavia espera al responsable: nadie chequea.
+    assert _chequear(cliente, id_mov, A1).status_code == 403
+    cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
+
+    assert _chequear(cliente, id_mov, A1, usuario=ANA).status_code == 403
+    assert _chequear(cliente, id_mov, A1, usuario=EXTRANO).status_code == 403
+    assert _chequear(cliente, id_mov, "zzz").status_code == 400
+
+
+def test_administracion_cierra_el_ingreso_solo_con_lo_chequeado_y_lo_demas_sigue_fuera():
+    cliente = _Cliente()
+    id_mov = _solicitar(cliente, activo_ids=[A1, A2])
+    cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
+    _confirmar_salida(cliente, id_mov, A1, A2)
+
+    _chequear(cliente, id_mov, A1)
+    _chequear(cliente, id_mov, A2, "no_encontrado", "No aparece")
+    respuesta = cliente.post(f"/api/movimientos/{id_mov}/confirmar-devolucion")
+
+    datos = respuesta.json()["data"]
+    assert datos["estado"] == "en_curso"
+    assert _estados_items(respuesta) == {A1: "devuelto", A2: "en_curso"}
+    # La marca del que sigue fuera se limpia: en el proximo ingreso se vuelve a chequear.
+    assert datos["items"][1]["chequeo_ingreso"] is None
+    ingreso = datos["actas"][1]
+    assert [(linea["activo_id"], linea["resultado"]) for linea in ingreso["lineas"]] == [
+        (A1, "encontrado"),
+        (A2, "no_encontrado"),
+    ]
+    assert ingreso["lineas"][1]["observacion"] == "No aparece"
+
+    # Segundo ingreso: llega el que faltaba y el movimiento se cierra.
+    _chequear(cliente, id_mov, A2)
+    cerrado = cliente.post(f"/api/movimientos/{id_mov}/confirmar-devolucion")
+    assert cerrado.json()["data"]["estado"] == "devuelto"
+    assert [(a["tipo"], a["numero"]) for a in cerrado.json()["data"]["actas"]] == [
+        ("salida", 1),
+        ("ingreso", 1),
+        ("ingreso", 2),
+    ]
+
+
+# --- actas: aceptacion del responsable y descarga ---
+
+
+def _salida_a_evento(cliente):
+    id_mov = _solicitar(cliente, tipo="salida_evento", sentido=None, activo_ids=[A1, A2], evento_nombre="Feria")
+    cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
+    respuesta = _confirmar_salida(cliente, id_mov, A1, A2)
+
+    return id_mov, respuesta.json()["data"]["actas"][0]["id"]
+
+
+def test_el_acta_de_salida_se_descarga_pendiente_y_completa_tras_la_aceptacion():
+    cliente = _Cliente()
+    id_mov, acta_id = _salida_a_evento(cliente)
+
+    pendiente = cliente.como(SOLICITANTE).get(f"/api/movimientos/{id_mov}/actas/{acta_id}/pdf")
+    assert pendiente.status_code == 200
+    assert pendiente.content.startswith(b"%PDF-acta-salida-1:pendiente:")
+    assert b"INV-1 - Laptop=encontrado" in pendiente.content
+
+    aceptada = cliente.post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+    assert aceptada.status_code == 200
+    acta = aceptada.json()["data"]["actas"][0]
+    assert acta["aceptada_por_nombre"] == f"Nombre {SOLICITANTE}"
+    assert acta["aceptada_por_correo"] == f"{SOLICITANTE}@example.com"
+    assert acta["fecha_aceptacion"] is not None
+
+    completa = cliente.get(f"/api/movimientos/{id_mov}/actas/{acta_id}/pdf")
+    assert completa.content.startswith(b"%PDF-acta-salida-1:aceptada:")
+
+
+def test_el_comprobante_historico_sigue_el_pdf_vigente_del_acta_de_salida():
+    cliente = _Cliente()
+    id_mov, acta_id = _salida_a_evento(cliente)
+
+    assert b":pendiente:" in cliente.get(f"/api/movimientos/{id_mov}/comprobante").content
+    cliente.como(SOLICITANTE).post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+
+    assert b":aceptada:" in cliente.get(f"/api/movimientos/{id_mov}/comprobante").content
+
+
+def test_solo_el_responsable_que_retira_acepta_el_acta_y_una_sola_vez():
+    cliente = _Cliente()
+    id_mov, acta_id = _salida_a_evento(cliente)
+
+    for usuario in (ADMIN, ANA, EXTRANO):
+        respuesta = cliente.como(usuario).post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+        assert respuesta.status_code == 403
+        assert respuesta.json()["code"] == "MOV-027"
+
+    assert cliente.como(SOLICITANTE).post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar").status_code == 200
+    repetida = cliente.post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+    assert repetida.status_code == 409
+    assert repetida.json()["code"] == "MOV-026"
+
+
+def test_un_acta_inexistente_retorna_404_con_mov_025():
+    cliente = _Cliente()
+    id_mov, _ = _salida_a_evento(cliente)
+
+    assert cliente.post(f"/api/movimientos/{id_mov}/actas/nada/aceptar").json()["code"] == "MOV-025"
+    assert cliente.get(f"/api/movimientos/{id_mov}/actas/nada/pdf").status_code == 404
+
+
+def test_un_ajeno_no_descarga_el_acta():
+    cliente = _Cliente()
+    id_mov, acta_id = _salida_a_evento(cliente)
+
+    assert cliente.como(EXTRANO).get(f"/api/movimientos/{id_mov}/actas/{acta_id}/pdf").status_code == 404
+
+
+def test_el_detalle_dice_quien_puede_aceptar_cada_acta():
+    cliente = _Cliente()
+    id_mov, acta_id = _salida_a_evento(cliente)
+
+    def puede_aceptar(usuario):
+        datos = cliente.como(usuario).get(f"/api/movimientos/{id_mov}").json()["data"]
+        return datos["actas"][0]["puede_aceptar"], "aceptar_acta" in datos["acciones_permitidas"]
+
+    assert puede_aceptar(SOLICITANTE) == (True, True)
+    assert puede_aceptar(ADMIN) == (False, False)
+    assert puede_aceptar(ANA) == (False, False)
+
+    cliente.como(SOLICITANTE).post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+    assert puede_aceptar(SOLICITANTE) == (False, False)
+
+
+def test_el_comprobante_no_existe_antes_de_la_salida():
+    cliente = _Cliente()
+    id_mov = _solicitar(cliente, tipo="salida_evento", sentido=None, evento_nombre="Feria")
+
+    sin_generar = cliente.get(f"/api/movimientos/{id_mov}/comprobante")
+
     assert sin_generar.status_code == 404
     assert sin_generar.json()["code"] == "MOV-008"
-
-    cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
-
-    descarga = cliente.como(SOLICITANTE).get(f"/api/movimientos/{id_mov}/comprobante")
-    assert descarga.status_code == 200
-    assert descarga.content.startswith(b"%PDF-comprobante:")
-    assert b"INV-1" in descarga.content and b"INV-2" in descarga.content
-    assert cliente.como(EXTRANO).get(f"/api/movimientos/{id_mov}/comprobante").status_code == 404
 
 
 # --- baja ---
@@ -658,8 +851,8 @@ def test_las_acciones_cambian_con_cada_etapa():
     assert acciones(ANA) == []
     assert acciones(ADMIN) == ["confirmar_salida", "rechazar"]
 
-    cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
-    assert acciones(SOLICITANTE) == ["solicitar_devolucion"]
+    _confirmar_salida(cliente, id_mov, A1)
+    assert acciones(SOLICITANTE) == ["solicitar_devolucion", "aceptar_acta"]
     assert acciones(ADMIN) == ["confirmar_devolucion"]
     assert acciones(ANA) == []
 
@@ -737,15 +930,22 @@ def test_cada_etapa_avisa_a_quien_corresponde():
         f"usuario:{SOLICITANTE}",
     ]
 
-    cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
+    _confirmar_salida(cliente, id_mov, A1, A3)
     assert "Salida confirmada" in cliente.notificador.enviados[-1][1]
+    assert "acta de salida" in cliente.notificador.enviados[-1][2]
 
     cliente.como(SOLICITANTE).post(f"/api/movimientos/{id_mov}/solicitar-devolucion")
     assert "Devolucion solicitada" in cliente.notificador.enviados[-1][1]
 
+    _chequear(cliente, id_mov, A1)
+    _chequear(cliente, id_mov, A3)
     cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-devolucion")
     assert "Devolucion confirmada" in cliente.notificador.enviados[-1][1]
-    assert len(cliente.notificador.enviados) == 6
+
+    acta_id = cliente.get(f"/api/movimientos/{id_mov}").json()["data"]["actas"][0]["id"]
+    cliente.como(SOLICITANTE).post(f"/api/movimientos/{id_mov}/actas/{acta_id}/aceptar")
+    assert "aceptada" in cliente.notificador.enviados[-1][1]
+    assert len(cliente.notificador.enviados) == 7
 
 
 def test_una_accion_que_falla_no_avisa():

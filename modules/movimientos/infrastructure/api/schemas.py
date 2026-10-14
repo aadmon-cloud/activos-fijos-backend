@@ -6,7 +6,9 @@ from modules.movimientos.domain.entities import (
     EstadoItemMovimiento,
     EstadoMovimiento,
     EtapaRechazo,
+    ResultadoChequeo,
     SentidoPrestamo,
+    TipoActa,
     TipoMovimiento,
 )
 
@@ -36,20 +38,48 @@ class RechazarMovimientoRequest(AccionSobreActivosRequest):
     motivo_rechazo: str = Field(max_length=_MAXIMO_TEXTO)
 
 
-class ConfirmarSalidaRequest(AccionSobreActivosRequest):
+class ConfirmarSalidaRequest(BaseModel):
+    """Cierra el chequeo de salida; el motivo es para los activos que no salen y no tienen observacion propia."""
+
     motivo_no_incluidos: str | None = Field(default=None, max_length=_MAXIMO_TEXTO)
 
 
-class ReciboActivoRequest(BaseModel):
-    activo_id: str
-    con_novedad: bool = False
+class ChequeoItemRequest(BaseModel):
+    """Resultado del chequeo de un activo; con novedad la observacion es obligatoria."""
+
+    resultado: ResultadoChequeo
     observacion: str | None = Field(default=None, max_length=_MAXIMO_TEXTO)
 
 
-class ConfirmarDevolucionRequest(BaseModel):
-    """Como se recibe cada activo; sin lista, se reciben todos los que estan fuera, sin novedad."""
+class ChequeoItemResponse(BaseModel):
+    resultado: ResultadoChequeo
+    observacion: str | None
+    por_nombre: str
+    fecha: datetime
 
-    recibos: list[ReciboActivoRequest] | None = Field(default=None, max_length=_MAXIMO_ACTIVOS)
+
+class LineaActaResponse(BaseModel):
+    activo_id: str
+    resultado: ResultadoChequeo
+    observacion: str | None
+    activo_nombre: str | None = None
+    activo_numero_inventario: str | None = None
+
+
+class ActaResponse(BaseModel):
+    id: str
+    tipo: TipoActa
+    numero: int
+    fecha_cierre: datetime
+    cerrada_por_nombre: str
+    cerrada_por_correo: str
+    aceptada_por_nombre: str | None
+    aceptada_por_correo: str | None
+    fecha_aceptacion: datetime | None
+    lineas: list[LineaActaResponse]
+
+    # Si el usuario con sesion puede aceptarla ahora (lo decide el backend).
+    puede_aceptar: bool = False
 
 
 class ItemMovimientoResponse(BaseModel):
@@ -65,6 +95,8 @@ class ItemMovimientoResponse(BaseModel):
     recibido_por_nombre: str | None
     fecha_devolucion_real: datetime | None
     novedad_devolucion: str | None
+    chequeo_salida: ChequeoItemResponse | None = None
+    chequeo_ingreso: ChequeoItemResponse | None = None
 
     # Solo en el listado y el detalle.
     activo_nombre: str | None = None
@@ -94,6 +126,9 @@ class MovimientoResponse(BaseModel):
     creado_por_id: str
     creado_por_nombre: str
     fecha_creacion: datetime
+
+    # Actas de salida y de ingreso, en el orden en que se cerraron.
+    actas: list[ActaResponse] = []
 
     # Solo en el listado y el detalle.
     usuario_destino_nombre: str | None = None

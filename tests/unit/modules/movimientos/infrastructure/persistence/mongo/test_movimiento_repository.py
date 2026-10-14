@@ -8,6 +8,8 @@ from modules.movimientos.domain.entities import (
     EstadoItemMovimiento,
     EstadoMovimiento,
     EtapaRechazo,
+    LineaActa,
+    ResultadoChequeo,
     SentidoPrestamo,
     TipoMovimiento,
 )
@@ -82,6 +84,45 @@ def test_un_movimiento_se_guarda_y_se_lee_sin_perder_nada(fabrica):
     assert leido.usuario_destino_id == movimiento.usuario_destino_id
     assert leido.aprobado_por_admin == movimiento.aprobado_por_admin
     assert leido.recordatorio_devolucion_enviado is True
+
+
+def test_los_chequeos_y_las_actas_se_guardan_y_se_leen_sin_perder_nada(fabrica):
+    activo = str(ObjectId())
+    item = fabrica.item(
+        activo_id=activo,
+        responsable_original_id=str(ObjectId()),
+        estado=EstadoItemMovimiento.EN_CURSO,
+        chequeo_salida=fabrica.chequeo(ResultadoChequeo.CON_NOVEDAD, "Rayado"),
+        chequeo_ingreso=fabrica.chequeo(ResultadoChequeo.NO_ENCONTRADO),
+    )
+    acta = fabrica.acta(
+        lineas=[LineaActa(activo_id=activo, resultado=ResultadoChequeo.CON_NOVEDAD, observacion="Rayado")],
+        aceptada_por=fabrica.sello("u2", "Destino", "destino@example.com"),
+    )
+    movimiento = fabrica.movimiento(id=None, items=[item], usuario_destino_id=str(ObjectId()), actas=[acta])
+
+    doc = _entidad_a_doc(movimiento)
+    leido = _doc_a_entidad({**doc, "_id": ObjectId()})
+
+    assert doc["items"][0]["chequeo_salida"]["resultado"] == "con_novedad"
+    assert doc["actas"][0]["lineas"][0]["activo_id"] == ObjectId(activo)
+    assert leido.items == movimiento.items
+    assert leido.actas == movimiento.actas
+    assert leido.actas[0].aceptada_por.correo == "destino@example.com"
+
+
+def test_un_documento_anterior_a_las_actas_se_lee_sin_chequeos_ni_actas(fabrica):
+    movimiento = _movimiento_completo(fabrica)
+    doc = _entidad_a_doc(movimiento)
+    doc.pop("actas")
+    for item in doc["items"]:
+        item.pop("chequeo_salida")
+        item.pop("chequeo_ingreso")
+
+    leido = _doc_a_entidad({**doc, "_id": ObjectId()})
+
+    assert leido.actas == []
+    assert all(i.chequeo_salida is None and i.chequeo_ingreso is None for i in leido.items)
 
 
 def test_una_baja_se_guarda_sin_destinatario_ni_sentido(fabrica):

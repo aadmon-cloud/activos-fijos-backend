@@ -280,7 +280,7 @@ responsable: «al aceptar y al resolver»). Crear la solicitud **no** cambia el 
   (`infrastructure/adapters/activo_estado_adapter.py`) es el **unico** archivo de solicitudes que usa codigo del
   modulo `activos`: se reutiliza su servicio para no duplicar transiciones ni historial.
 
-## Movimientos: varios activos, doble aprobacion y devolucion con recibo
+## Movimientos: varios activos, doble aprobacion, chequeo de salida e ingreso y actas
 
 Un movimiento (`prestamo`, `salida_evento`, `baja`) tiene **varios items** (un activo cada uno) y cada item sigue su
 propio recorrido. El estado del movimiento se **calcula** a partir de sus items (salvo la baja, explicita).
@@ -328,19 +328,40 @@ Las decide el backend; el frontend no las recalcula.
 | --- | --- | --- |
 | `aprobar` (`POST /{id}/aprobar`) | El responsable actual de cada activo; en una baja, el administrador | `pendiente_responsable` (o la baja `solicitada`) |
 | `rechazar` (`POST /{id}/rechazar`, con `motivo_rechazo`) | Igual que aprobar; el administrador tambien los `pendiente_admin` | Los que esa persona puede decidir |
-| `confirmar_salida` (`POST /{id}/confirmar-salida`) | Administrador | `pendiente_admin` (prestamo y evento) |
+| `confirmar_salida` (`PUT /{id}/items/{activo_id}/chequeo` y `POST /{id}/confirmar-salida`) | Administrador | `pendiente_admin` (prestamo y evento): ofrecerla significa que el activo esta en el **chequeo de salida** |
 | `solicitar_devolucion` (`POST /{id}/solicitar-devolucion`) | Quien tiene el activo (destinatario o responsable actual) | `en_curso` |
-| `confirmar_devolucion` (`POST /{id}/confirmar-devolucion`) | Administrador | `en_curso` o `devolucion_solicitada` |
+| `confirmar_devolucion` (`PUT /{id}/items/{activo_id}/chequeo` y `POST /{id}/confirmar-devolucion`) | Administrador | `en_curso` o `devolucion_solicitada`: el activo esta en el **chequeo de ingreso** |
+| `aceptar_acta` (`POST /{id}/actas/{acta_id}/aceptar`) | El destinatario (quien retira o devuelve) | Es del movimiento, no de un item: hay un acta suya pendiente |
 | `ejecutar_baja` (`POST /{id}/ejecutar-baja`) | Administrador | Baja `aprobada` |
 
-Todas las rutas aceptan un cuerpo opcional `{activo_ids: [...]}`: sin el, actuan sobre todos los activos que ese usuario
-puede; si pide uno que no puede, `403 MOV-007` (o `400 MOV-021` si no es del movimiento).
-- **Confirmar salida** `{activo_ids?, motivo_no_incluidos?}`: administracion elige que sale. Los `pendiente_admin` no
-  elegidos quedan `rechazado` (etapa `administracion`). Cambia el activo a `prestado` y su responsable al destinatario.
-  La salida a evento genera el comprobante PDF con los activos que salieron.
-- **Confirmar devolucion** `{recibos?: [{activo_id, con_novedad, observacion}]}`: cada activo se recibe bien o con
-  novedad (la observacion es obligatoria, `MOV-023`). Una novedad queda en el movimiento y como **nota en el historial
-  del activo** (`GET /api/activos/{id}/historial`, entrada `tipo: "nota"`). Sin cuerpo se reciben todos, sin novedad.
+Aprobar, rechazar y solicitar devolucion aceptan un cuerpo opcional `{activo_ids: [...]}`: sin el, actuan sobre todos los
+activos que ese usuario puede; si pide uno que no puede, `403 MOV-007` (o `400 MOV-021` si no es del movimiento).
+
+**Chequeo de salida e ingreso (como una auditoria).** La salida y el ingreso se chequean activo por activo y el
+resultado queda guardado en el item (`chequeo_salida` / `chequeo_ingreso`: `{resultado, observacion, por_nombre, fecha}`).
+- **Chequear** `PUT /{id}/items/{activo_id}/chequeo` `{resultado: encontrado|con_novedad|no_encontrado, observacion?}`:
+  solo administracion (`movimientos-gestionar`). La fase la define el estado del activo (`pendiente_admin` = salida;
+  `en_curso` o `devolucion_solicitada` = ingreso). Con novedad la observacion es obligatoria (`400 MOV-023`). Se puede
+  corregir hasta cerrar el chequeo. Un activo que no esta en una fase de chequeo, o sin permiso: `403 MOV-028`.
+- **Cerrar el chequeo de salida** `POST /{id}/confirmar-salida` `{motivo_no_incluidos?}`: salen los `encontrado` y
+  `con_novedad` (el activo pasa a `prestado` y su responsable al destinatario); los `no_encontrado` y los sin chequear
+  quedan `rechazado` (etapa `administracion`, con su observacion, o el motivo general, o uno por defecto). Sin ningun
+  activo encontrado: `422 MOV-029`. Se genera el **acta de salida** y el movimiento queda `en_curso` esperando el ingreso.
+- **Cerrar el chequeo de ingreso** `POST /{id}/confirmar-devolucion` (sin cuerpo): se reciben los `encontrado` y
+  `con_novedad` (vuelven a `disponible` y a su responsable original; una novedad queda en el movimiento y como **nota en
+  el historial del activo**, `GET /api/activos/{id}/historial`, `tipo: "nota"`). Los `no_encontrado` o sin chequear siguen
+  fuera, su marca se limpia y se reciben en otro ingreso. Se genera el **acta de ingreso**.
+
+**Actas** (`actas` en el detalle, en el orden en que se cerraron). Cada una trae `id`, `tipo` (`salida`|`ingreso`),
+`numero` (consecutivo por tipo), `fecha_cierre`, `cerrada_por_nombre/correo` (sello del administrador que cerro el
+chequeo), `aceptada_por_nombre/correo` y `fecha_aceptacion` (sello del responsable; nulos mientras no acepte), `lineas`
+(`activo_id`, nombre, inventario, `resultado`, `observacion`) y `puede_aceptar` (si el usuario con sesion puede aceptarla).
+Los sellos llevan **solo nombre y correo**.
+- **Aceptar** `POST /{id}/actas/{acta_id}/aceptar`: solo el **destinatario** del movimiento (`403 MOV-027`); una sola vez
+  (`409 MOV-026`); acta inexistente `404 MOV-025`. El PDF se vuelve a emitir con los dos sellos y reemplaza al anterior.
+- **PDF** `GET /{id}/actas/{acta_id}/pdf`: con la misma visibilidad que el movimiento. `GET /{id}/comprobante` sigue
+  existiendo y apunta al PDF vigente del acta de salida mas reciente.
+- Cerrar un chequeo avisa por correo a los participantes (pide aceptar el acta) y aceptarla avisa a administracion.
 - El cambio sobre los activos no es transaccional: si falla uno se deshacen los ya cambiados y responde
   `422 MOV-011`.
 

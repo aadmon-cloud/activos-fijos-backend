@@ -215,3 +215,48 @@ class DestinatarioIgualAlResponsableError(DomainError):
             code="MOV-024",
             category=ErrorCategory.VALIDATION,
         )
+
+
+class ActaNoEncontradaError(DomainError):
+    def __init__(self, acta_id: str):
+        super().__init__(
+            f"El acta '{acta_id}' no existe.",
+            code="MOV-025",
+            category=ErrorCategory.NOT_FOUND,
+        )
+
+
+class ActaYaAceptadaError(DomainError):
+    def __init__(self, acta_id: str):
+        super().__init__(
+            f"El acta '{acta_id}' ya fue aceptada.",
+            code="MOV-026",
+            category=ErrorCategory.CONFLICT,
+        )
+
+
+class SoloElResponsableAceptaElActaError(DomainError):
+    def __init__(self):
+        super().__init__(
+            "Solo quien retira o devuelve los activos puede aceptar el acta.",
+            code="MOV-027",
+            category=ErrorCategory.FORBIDDEN,
+        )
+
+
+class ChequeoNoDisponibleError(DomainError):
+    def __init__(self, activo_id: str):
+        super().__init__(
+            f"El activo '{activo_id}' no esta en una fase que se pueda chequear, o no tiene permiso para hacerlo.",
+            code="MOV-028",
+            category=ErrorCategory.FORBIDDEN,
+        )
+
+
+class NingunActivoChequeadoError(DomainError):
+    def __init__(self):
+        super().__init__(
+            "Chequee al menos un activo como encontrado (o con novedad) antes de cerrar el chequeo.",
+            code="MOV-029",
+            category=ErrorCategory.BUSINESS_RULE,
+        )

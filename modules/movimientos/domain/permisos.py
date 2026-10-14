@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from enum import Enum
 
 from modules.movimientos.domain.entities import (
+    ActaMovimiento,
     EstadoItemMovimiento,
     EstadoMovimiento,
     ItemMovimiento,
@@ -20,6 +21,7 @@ class AccionMovimiento(str, Enum):
     SOLICITAR_DEVOLUCION = "solicitar_devolucion"
     CONFIRMAR_DEVOLUCION = "confirmar_devolucion"
     EJECUTAR_BAJA = "ejecutar_baja"
+    ACEPTAR_ACTA = "aceptar_acta"
 
 
 def es_administrador(actor_rol: str) -> bool:
@@ -46,6 +48,8 @@ def acciones_de_item(
     - Uno que espera a administracion lo decide el administrador: confirma la salida (en prestamos y salidas) o
       aprueba la baja; en ambos casos tambien puede rechazarlo.
     - Uno que esta fuera lo puede pedir de vuelta quien lo tiene; administracion lo recibe.
+    - `confirmar_salida` y `confirmar_devolucion` indican que el activo esta en la fase de chequeo de salida o de
+      ingreso: administracion lo marca (encontrado, con novedad, no encontrado) y luego cierra el chequeo.
     """
     es_admin = es_administrador(actor_rol)
     acciones: list[AccionMovimiento] = []
@@ -77,6 +81,11 @@ def acciones_de_item(
     return acciones
 
 
+def puede_aceptar_acta(movimiento: Movimiento, acta: ActaMovimiento, actor_id: str) -> bool:
+    """Acepta el acta quien retira o devuelve los activos (el destinatario), una sola vez."""
+    return acta.aceptada_por is None and actor_id == movimiento.usuario_destino_id
+
+
 def acciones_permitidas(
     movimiento: Movimiento,
     actor_id: str,
@@ -92,6 +101,9 @@ def acciones_permitidas(
         ):
             if accion not in acciones:
                 acciones.append(accion)
+
+    if any(puede_aceptar_acta(movimiento, acta, actor_id) for acta in movimiento.actas):
+        acciones.append(AccionMovimiento.ACEPTAR_ACTA)
 
     return acciones
 

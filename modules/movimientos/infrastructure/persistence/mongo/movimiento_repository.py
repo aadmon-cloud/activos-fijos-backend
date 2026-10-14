@@ -10,12 +10,18 @@ from modules.movimientos.application.ports.movimiento_repository import (
 )
 from modules.movimientos.domain.entities import (
     ESTADOS_ITEM_ACTIVOS,
+    ActaMovimiento,
+    ChequeoItem,
     EstadoItemMovimiento,
     EstadoMovimiento,
     EtapaRechazo,
     ItemMovimiento,
+    LineaActa,
     Movimiento,
+    ResultadoChequeo,
+    SelloActa,
     SentidoPrestamo,
+    TipoActa,
     TipoMovimiento,
 )
 from shared.domain.entities.audit import AuditPersona
@@ -43,6 +49,78 @@ def _doc_a_audit(doc: dict | None) -> AuditPersona | None:
     return AuditPersona(id_persona=doc["id_persona"], nombre=doc["nombre"], fecha=doc["fecha"])
 
 
+def _chequeo_a_doc(chequeo: ChequeoItem | None) -> dict | None:
+    if chequeo is None:
+        return None
+    return {
+        "resultado": chequeo.resultado.value,
+        "observacion": chequeo.observacion,
+        "por": _audit_a_doc(chequeo.por),
+    }
+
+
+def _doc_a_chequeo(doc: dict | None) -> ChequeoItem | None:
+    if doc is None:
+        return None
+    return ChequeoItem(
+        resultado=ResultadoChequeo(doc["resultado"]),
+        observacion=doc.get("observacion"),
+        por=_doc_a_audit(doc["por"]),
+    )
+
+
+def _sello_a_doc(sello: SelloActa | None) -> dict | None:
+    if sello is None:
+        return None
+    return {"id_persona": sello.id_persona, "nombre": sello.nombre, "correo": sello.correo, "fecha": sello.fecha}
+
+
+def _doc_a_sello(doc: dict | None) -> SelloActa | None:
+    if doc is None:
+        return None
+    return SelloActa(
+        id_persona=doc["id_persona"], nombre=doc["nombre"], correo=doc["correo"], fecha=doc["fecha"]
+    )
+
+
+def _acta_a_doc(acta: ActaMovimiento) -> dict:
+    return {
+        "id": acta.id,
+        "tipo": acta.tipo.value,
+        "numero": acta.numero,
+        "lineas": [
+            {
+                "activo_id": ObjectId(linea.activo_id),
+                "resultado": linea.resultado.value,
+                "observacion": linea.observacion,
+            }
+            for linea in acta.lineas
+        ],
+        "archivo_id": acta.archivo_id,
+        "cerrada_por": _sello_a_doc(acta.cerrada_por),
+        "aceptada_por": _sello_a_doc(acta.aceptada_por),
+    }
+
+
+def _doc_a_acta(doc: dict) -> ActaMovimiento:
+    return ActaMovimiento(
+        id=doc["id"],
+        tipo=TipoActa(doc["tipo"]),
+        numero=doc["numero"],
+        lineas=[
+            LineaActa(
+                activo_id=str(linea["activo_id"]),
+                resultado=ResultadoChequeo(linea["resultado"]),
+                observacion=linea.get("observacion"),
+            )
+            for linea in doc["lineas"]
+        ],
+        archivo_id=doc.get("archivo_id"),
+        cerrada_por=_doc_a_sello(doc["cerrada_por"]),
+        aceptada_por=_doc_a_sello(doc.get("aceptada_por")),
+    )
+
+
 def _object_id(valor: str | None) -> ObjectId | None:
     return ObjectId(valor) if valor else None
 
@@ -64,6 +142,8 @@ def _item_a_doc(item: ItemMovimiento) -> dict:
         "recibido_por": _audit_a_doc(item.recibido_por),
         "fecha_devolucion_real": item.fecha_devolucion_real,
         "novedad_devolucion": item.novedad_devolucion,
+        "chequeo_salida": _chequeo_a_doc(item.chequeo_salida),
+        "chequeo_ingreso": _chequeo_a_doc(item.chequeo_ingreso),
     }
 
 
@@ -80,6 +160,8 @@ def _doc_a_item(doc: dict) -> ItemMovimiento:
         recibido_por=_doc_a_audit(doc.get("recibido_por")),
         fecha_devolucion_real=doc.get("fecha_devolucion_real"),
         novedad_devolucion=doc.get("novedad_devolucion"),
+        chequeo_salida=_doc_a_chequeo(doc.get("chequeo_salida")),
+        chequeo_ingreso=_doc_a_chequeo(doc.get("chequeo_ingreso")),
     )
 
 
@@ -101,6 +183,7 @@ def _entidad_a_doc(movimiento: Movimiento) -> dict:
         "creado_por": _audit_a_doc(movimiento.creado_por),
         "actualizado_por": _audit_a_doc(movimiento.actualizado_por),
         "recordatorio_devolucion_enviado": movimiento.recordatorio_devolucion_enviado,
+        "actas": [_acta_a_doc(acta) for acta in movimiento.actas],
     }
 
 
@@ -123,6 +206,7 @@ def _doc_a_entidad(doc: dict) -> Movimiento:
         creado_por=_doc_a_audit(doc["creado_por"]),
         actualizado_por=_doc_a_audit(doc.get("actualizado_por")),
         recordatorio_devolucion_enviado=doc.get("recordatorio_devolucion_enviado", False),
+        actas=[_doc_a_acta(acta) for acta in doc.get("actas", [])],
     )
 
 
