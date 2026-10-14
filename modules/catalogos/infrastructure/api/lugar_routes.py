@@ -24,15 +24,16 @@ from modules.catalogos.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
+    requiere_permiso,
     requiere_usuario_autenticado,
 )
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
 
 router = APIRouter(prefix="/api/lugares", tags=["lugares"])
 
-_requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
+_requiere_catalogos_crear = requiere_permiso("catalogos-crear")
+_requiere_catalogos_editar = requiere_permiso("catalogos-editar")
+_requiere_catalogos_eliminar = requiere_permiso("catalogos-eliminar")
 
 
 @router.post(
@@ -47,7 +48,7 @@ _requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
 async def crear_lugar(
     body: CrearLugarRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_crear)
     ],
     service: Annotated[CrearLugarService, Depends(get_crear_lugar_service)],
 ):
@@ -109,7 +110,7 @@ async def actualizar_lugar(
     id_lugar: str,
     body: ActualizarLugarRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_editar)
     ],
     service: Annotated[ActualizarLugarService, Depends(get_actualizar_lugar_service)],
 ):
@@ -133,7 +134,7 @@ async def actualizar_lugar(
 async def eliminar_lugar(
     id_lugar: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_eliminar)
     ],
     service: Annotated[EliminarLugarService, Depends(get_eliminar_lugar_service)],
 ):

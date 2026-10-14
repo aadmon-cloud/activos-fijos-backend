@@ -5,7 +5,12 @@ from modules.usuarios.application.dto.actualizar_usuario_dto import ActualizarUs
 from modules.usuarios.application.dto.usuario_dto import UsuarioDTO, usuario_a_dto
 from modules.usuarios.application.ports.usuario_repository import UsuarioRepositoryPort
 from modules.usuarios.application.ports.verificador_area import VerificadorAreaPort
-from modules.usuarios.domain.errors import AreaInvalidaError, UsuarioNoEncontradoError
+from modules.usuarios.domain.errors import (
+    AreaInvalidaError,
+    GestionSuperAdministradorNoPermitidaError,
+    UsuarioNoEncontradoError,
+)
+from modules.usuarios.domain.reglas import puede_gestionar_rol
 from shared.domain.entities.audit import AuditPersona
 
 
@@ -22,6 +27,12 @@ class ActualizarUsuarioService:
         usuario = await self._usuario_repository.obtener_por_id(dto.id_usuario)
         if usuario is None:
             raise UsuarioNoEncontradoError(dto.id_usuario)
+
+        # Ni tocar a un Super administrador ni dar ese rol a alguien: solo lo hace otro Super administrador.
+        if not puede_gestionar_rol(dto.actor_rol, usuario.rol) or (
+            dto.rol is not None and not puede_gestionar_rol(dto.actor_rol, dto.rol)
+        ):
+            raise GestionSuperAdministradorNoPermitidaError()
 
         if dto.area_id is not None and not await self._verificador_area.existe(dto.area_id):
             raise AreaInvalidaError(dto.area_id)

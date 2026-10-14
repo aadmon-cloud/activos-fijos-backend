@@ -25,15 +25,16 @@ from modules.catalogos.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
+    requiere_permiso,
     requiere_usuario_autenticado,
 )
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
 
 router = APIRouter(prefix="/api/condiciones", tags=["condiciones"])
 
-_requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
+_requiere_catalogos_crear = requiere_permiso("catalogos-crear")
+_requiere_catalogos_editar = requiere_permiso("catalogos-editar")
+_requiere_catalogos_eliminar = requiere_permiso("catalogos-eliminar")
 
 
 @router.post(
@@ -48,7 +49,7 @@ _requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
 async def crear_condicion(
     body: CrearCondicionRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_crear)
     ],
     service: Annotated[CrearCondicionService, Depends(get_crear_condicion_service)],
 ):
@@ -112,7 +113,7 @@ async def actualizar_condicion(
     id_condicion: str,
     body: ActualizarCondicionRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_editar)
     ],
     service: Annotated[ActualizarCondicionService, Depends(get_actualizar_condicion_service)],
 ):
@@ -137,7 +138,7 @@ async def actualizar_condicion(
 async def eliminar_condicion(
     id_condicion: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_eliminar)
     ],
     service: Annotated[EliminarCondicionService, Depends(get_eliminar_condicion_service)],
 ):

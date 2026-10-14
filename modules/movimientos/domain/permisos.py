@@ -8,8 +8,7 @@ from modules.movimientos.domain.entities import (
     Movimiento,
     TipoMovimiento,
 )
-
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
+from shared.domain.roles import es_administrador as es_rol_administrador
 
 
 class AccionMovimiento(str, Enum):
@@ -24,7 +23,7 @@ class AccionMovimiento(str, Enum):
 
 
 def es_administrador(actor_rol: str) -> bool:
-    return actor_rol == _ROL_ADMINISTRADOR_GENERAL
+    return es_rol_administrador(actor_rol)
 
 
 def tiene_el_activo(movimiento: Movimiento, actor_id: str, responsable_actual_id: str | None) -> bool:

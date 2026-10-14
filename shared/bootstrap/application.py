@@ -46,6 +46,13 @@ from modules.notificaciones.bootstrap import register_module as register_module_
 from modules.notificaciones.infrastructure.persistence.mongo.notificacion_repository import (
     crear_indices as crear_indices_notificaciones,
 )
+from modules.permisos.bootstrap import (
+    asegurar_permisos_iniciales,
+    register_module as register_module_permisos,
+)
+from modules.permisos.infrastructure.persistence.mongo.permisos_repository import (
+    crear_indices as crear_indices_permisos,
+)
 from modules.solicitudes.bootstrap import register_module as register_module_solicitudes
 from modules.solicitudes.infrastructure.persistence.mongo.solicitud_repository import (
     crear_indices as crear_indices_solicitudes,
@@ -79,6 +86,8 @@ async def lifespan(_: FastAPI):
     await crear_indices_auditorias()
     await crear_indices_movimientos()
     await crear_indices_notificaciones()
+    await crear_indices_permisos()
+    await asegurar_permisos_iniciales()
     try:
         yield
     finally:
@@ -105,6 +114,7 @@ def create_app() -> FastAPI:
     register_module_movimientos(app)
     register_module_notificaciones(app)
     register_module_dashboard(app)
+    register_module_permisos(app)
 
     app.add_middleware(CsrfHeaderMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)

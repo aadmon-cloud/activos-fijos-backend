@@ -18,3 +18,6 @@ class RegistrarUsuarioDTO:
     # El ingreso es con Google: normalmente no hay contrasena. Solo se usa si se reabre el ingreso con contrasena
     # (pruebas locales).
     password: str | None = None
+
+    # Rol de quien ejecuta la accion; vacio = sin privilegios.
+    actor_rol: str = ""

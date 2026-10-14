@@ -49,15 +49,16 @@ from modules.activos.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
-    requiere_usuario_autenticado,
+    requiere_permiso,
 )
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
 
 router = APIRouter(prefix="/api/activos", tags=["activos"])
 
-_requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
+_requiere_activos_crear = requiere_permiso("activos-crear")
+_requiere_activos_editar = requiere_permiso("activos-editar")
+_requiere_activos_estado = requiere_permiso("activos-estado")
+_requiere_activos_ver = requiere_permiso("activos-ver")
 
 
 def _a_complemento_dto(body: ComplementoRequest) -> ComplementoDTO:
@@ -123,7 +124,7 @@ def _a_response_con_nombres(activo: ActivoConNombresDTO) -> ActivoConNombresResp
 async def crear_activo(
     body: CrearActivoRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_activos_crear)
     ],
     service: Annotated[CrearActivoService, Depends(get_crear_activo_service)],
 ):
@@ -162,7 +163,7 @@ async def crear_activo(
     summary="Lista los activos existentes",
 )
 async def listar_activos(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_activos_ver)],
     service: Annotated[ListarActivosService, Depends(get_listar_activos_service)],
     area_id: str | None = Query(default=None),
     categoria_id: str | None = Query(default=None),
@@ -203,7 +204,7 @@ async def listar_activos(
 )
 async def obtener_activo(
     id_activo: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_activos_ver)],
     service: Annotated[ObtenerActivoService, Depends(get_obtener_activo_service)],
 ):
     activo = await service.ejecutar(id_activo)
@@ -217,7 +218,7 @@ async def obtener_activo(
 )
 async def obtener_historial_activo(
     id_activo: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_activos_ver)],
     service: Annotated[
         ObtenerHistorialActivoService, Depends(get_obtener_historial_activo_service)
     ],
@@ -238,7 +239,7 @@ async def actualizar_activo(
     id_activo: str,
     body: ActualizarActivoRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_activos_editar)
     ],
     service: Annotated[ActualizarActivoService, Depends(get_actualizar_activo_service)],
 ):
@@ -284,7 +285,7 @@ async def cambiar_estado_activo(
     id_activo: str,
     body: CambiarEstadoActivoRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_activos_estado)
     ],
     service: Annotated[CambiarEstadoActivoService, Depends(get_cambiar_estado_activo_service)],
 ):
@@ -311,7 +312,7 @@ async def subir_foto_activo(
     id_activo: str,
     request: Request,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_activos_editar)
     ],
     service: Annotated[SubirFotoActivoService, Depends(get_subir_foto_activo_service)],
 ):
@@ -338,7 +339,7 @@ async def subir_foto_activo(
 )
 async def obtener_foto_activo(
     id_activo: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_activos_ver)],
     service: Annotated[ObtenerFotoActivoService, Depends(get_obtener_foto_activo_service)],
 ):
     foto = await service.ejecutar(id_activo)
@@ -357,7 +358,7 @@ async def obtener_foto_activo(
 async def eliminar_foto_activo(
     id_activo: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_activos_editar)
     ],
     service: Annotated[EliminarFotoActivoService, Depends(get_eliminar_foto_activo_service)],
 ):

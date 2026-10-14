@@ -39,10 +39,13 @@ from modules.solicitudes.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_usuario_autenticado,
+    requiere_permiso,
 )
 
 router = APIRouter(prefix="/api/solicitudes", tags=["solicitudes"])
+
+_requiere_solicitudes_crear = requiere_permiso("solicitudes-crear")
+_requiere_solicitudes_ver = requiere_permiso("solicitudes-ver")
 
 
 def _a_response(solicitud: SolicitudDTO) -> SolicitudResponse:
@@ -96,7 +99,7 @@ def _a_response_con_nombres(solicitud: SolicitudConNombresDTO) -> SolicitudConNo
 )
 async def crear_solicitud(
     body: CrearSolicitudRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_solicitudes_crear)],
     service: Annotated[CrearSolicitudService, Depends(get_crear_solicitud_service)],
 ):
     solicitud = await service.ejecutar(
@@ -123,7 +126,7 @@ async def crear_solicitud(
     summary="Lista las solicitudes existentes",
 )
 async def listar_solicitudes(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_solicitudes_ver)],
     service: Annotated[ListarSolicitudesService, Depends(get_listar_solicitudes_service)],
     tipo: TipoSolicitud | None = Query(default=None),
     estado: EstadoSolicitud | None = Query(default=None),
@@ -163,7 +166,7 @@ async def listar_solicitudes(
 )
 async def obtener_solicitud(
     id_solicitud: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_solicitudes_ver)],
     service: Annotated[ObtenerSolicitudService, Depends(get_obtener_solicitud_service)],
 ):
     solicitud = await service.ejecutar(
@@ -189,7 +192,7 @@ async def obtener_solicitud(
 async def cambiar_estado_solicitud(
     id_solicitud: str,
     body: CambiarEstadoSolicitudRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_solicitudes_ver)],
     service: Annotated[
         CambiarEstadoSolicitudService, Depends(get_cambiar_estado_solicitud_service)
     ],
@@ -220,7 +223,7 @@ async def cambiar_estado_solicitud(
 async def agregar_seguimiento_solicitud(
     id_solicitud: str,
     body: AgregarSeguimientoSolicitudRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_solicitudes_ver)],
     service: Annotated[
         AgregarSeguimientoSolicitudService, Depends(get_agregar_seguimiento_solicitud_service)
     ],

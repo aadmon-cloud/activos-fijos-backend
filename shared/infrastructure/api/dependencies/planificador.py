@@ -9,6 +9,7 @@ from shared.application.client_auth.errors import (
     TokenInvalidoError,
 )
 from shared.application.user_auth.errors import PermisosInsuficientesError
+from shared.domain.roles import es_administrador
 from shared.infrastructure.api.dependencies.user_authentication import (
     requiere_usuario_autenticado,
 )
@@ -18,7 +19,6 @@ from shared.infrastructure.gcp.authentication.token_verifier import (
 
 logger = logging.getLogger(__name__)
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
 _verificador: VerificadorTokenIdentidadGoogle | None = None
 
 
@@ -67,5 +67,5 @@ async def requiere_admin_o_planificador(
         return
 
     identidad = await requiere_usuario_autenticado(request, authorization)
-    if identidad.rol != _ROL_ADMINISTRADOR_GENERAL:
+    if not es_administrador(identidad.rol):
         raise PermisosInsuficientesError()

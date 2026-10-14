@@ -108,3 +108,11 @@ class LoginConPasswordDeshabilitadoError(DomainError):
             category=ErrorCategory.FORBIDDEN,
         )
 
+
+class GestionSuperAdministradorNoPermitidaError(DomainError):
+    def __init__(self):
+        super().__init__(
+            "Solo un Super administrador puede asignar ese rol o gestionar a otro Super administrador.",
+            code="USR-013",
+            category=ErrorCategory.FORBIDDEN,
+        )

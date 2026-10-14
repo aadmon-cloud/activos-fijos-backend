@@ -74,15 +74,24 @@ from modules.mantenimientos.infrastructure.api.schemas import (
     MantenimientoResponse,
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
-from shared.infrastructure.api.dependencies.user_authentication import requiere_rol
+from shared.application.user_auth.errors import PermisosInsuficientesError
+from shared.infrastructure.api.dependencies.user_authentication import requiere_permiso, tiene_permiso
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
-_ROL_MANTENIMIENTO = "mantenimiento"
 
 router = APIRouter(prefix="/api/mantenimientos", tags=["mantenimientos"])
 
-_requiere_mantenimiento = requiere_rol(_ROL_MANTENIMIENTO, _ROL_ADMINISTRADOR_GENERAL)
-_requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
+_requiere_mantenimientos_alertas = requiere_permiso("mantenimientos-alertas")
+_requiere_mantenimientos_gestionar = requiere_permiso("mantenimientos-gestionar")
+_requiere_mantenimientos_ver = requiere_permiso("mantenimientos-ver")
+
+
+async def _exigir_permiso_para_elegir_tecnico(
+    identidad: IdentidadUsuarioAutenticada, tecnico_responsable_id: str | None
+) -> None:
+    """Quien no tiene la funcion de elegir el tecnico solo puede registrarse a si mismo como tecnico."""
+    if tecnico_responsable_id and tecnico_responsable_id != identidad.id_usuario:
+        if not await tiene_permiso(identidad.rol, "mantenimientos-tecnico"):
+            raise PermisosInsuficientesError()
 
 
 def _a_response(mantenimiento: MantenimientoDTO) -> MantenimientoResponse:
@@ -137,9 +146,10 @@ def _a_response_con_nombres(
 )
 async def crear_mantenimiento(
     body: CrearMantenimientoRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[CrearMantenimientoService, Depends(get_crear_mantenimiento_service)],
 ):
+    await _exigir_permiso_para_elegir_tecnico(identidad, body.tecnico_responsable_id)
     mantenimiento = await service.ejecutar(
         CrearMantenimientoDTO(
             activo_id=body.activo_id,
@@ -171,11 +181,12 @@ async def crear_mantenimiento(
 )
 async def registrar_mantenimientos_masivo(
     body: CrearMantenimientosMasivoRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[
         RegistrarMantenimientosMasivoService, Depends(get_registrar_mantenimientos_masivo_service)
     ],
 ):
+    await _exigir_permiso_para_elegir_tecnico(identidad, body.tecnico_responsable_id)
     resultado = await service.ejecutar(
         CrearMantenimientosMasivoDTO(
             codigos=body.codigos,
@@ -210,7 +221,7 @@ async def registrar_mantenimientos_masivo(
     summary="Lista los mantenimientos existentes",
 )
 async def listar_mantenimientos(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_ver)],
     service: Annotated[ListarMantenimientosService, Depends(get_listar_mantenimientos_service)],
     activo_id: str | None = Query(default=None),
     tecnico_responsable_id: str | None = Query(default=None),
@@ -245,7 +256,7 @@ async def listar_mantenimientos(
 )
 async def obtener_mantenimiento(
     id_mantenimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_ver)],
     service: Annotated[ObtenerMantenimientoService, Depends(get_obtener_mantenimiento_service)],
 ):
     mantenimiento = await service.ejecutar(id_mantenimiento)
@@ -263,7 +274,7 @@ async def obtener_mantenimiento(
 async def cambiar_estado_mantenimiento(
     id_mantenimiento: str,
     body: CambiarEstadoMantenimientoRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[
         CambiarEstadoMantenimientoService, Depends(get_cambiar_estado_mantenimiento_service)
     ],
@@ -318,7 +329,7 @@ async def _subir_archivo(
 async def subir_documento_mantenimiento(
     id_mantenimiento: str,
     request: Request,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[
         SubirArchivoMantenimientoService, Depends(get_subir_archivo_mantenimiento_service)
     ],
@@ -339,7 +350,7 @@ async def subir_documento_mantenimiento(
 async def subir_evidencia_mantenimiento(
     id_mantenimiento: str,
     request: Request,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[
         SubirArchivoMantenimientoService, Depends(get_subir_archivo_mantenimiento_service)
     ],
@@ -356,7 +367,7 @@ async def subir_evidencia_mantenimiento(
 async def obtener_archivo_mantenimiento(
     id_mantenimiento: str,
     archivo_id: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_ver)],
     service: Annotated[
         ObtenerArchivoMantenimientoService, Depends(get_obtener_archivo_mantenimiento_service)
     ],
@@ -377,7 +388,7 @@ async def obtener_archivo_mantenimiento(
 async def eliminar_archivo_mantenimiento(
     id_mantenimiento: str,
     archivo_id: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimiento)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_gestionar)],
     service: Annotated[
         EliminarArchivoMantenimientoService, Depends(get_eliminar_archivo_mantenimiento_service)
     ],
@@ -399,7 +410,7 @@ async def eliminar_archivo_mantenimiento(
 )
 async def verificar_alertas_mantenimiento(
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_mantenimientos_alertas)
     ],
     service: Annotated[
         VerificarAlertasMantenimientoService, Depends(get_verificar_alertas_mantenimiento_service)

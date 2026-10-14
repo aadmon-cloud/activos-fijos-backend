@@ -15,11 +15,11 @@ from modules.dashboard.infrastructure.api.schemas import (
     ResumenSolicitudesResponse,
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
-from shared.infrastructure.api.dependencies.user_authentication import requiere_rol
+from shared.infrastructure.api.dependencies.user_authentication import requiere_permiso
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
-_requiere_administrador_general = requiere_rol("administrador_general")
+_requiere_dashboard_ver = requiere_permiso("dashboard-ver")
 
 
 def _a_response(resumen: ResumenDashboard) -> DashboardResponse:
@@ -68,7 +68,7 @@ def _a_response(resumen: ResumenDashboard) -> DashboardResponse:
     summary="Resumen agregado de activos, solicitudes, mantenimientos, auditorias y movimientos",
 )
 async def obtener_dashboard(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_dashboard_ver)],
     service: Annotated[ObtenerDashboardService, Depends(get_obtener_dashboard_service)],
     limite_auditorias_recientes: int = Query(default=5, ge=1, le=20),
 ):

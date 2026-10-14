@@ -73,6 +73,7 @@ async def test_cuando_el_ultimo_responsable_aprueba_pasa_a_administracion(fabric
     assert guardado.estado == E.APROBADO_RESPONSABLE
     assert notificador.notificar.await_args.kwargs["destinatarios"] == [
         "rol:administrador_general",
+        "rol:super_administrador",
         "usuario:u2",
     ]
 

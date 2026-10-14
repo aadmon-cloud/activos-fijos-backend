@@ -1,11 +1,10 @@
 from modules.solicitudes.domain.entities import EstadoSolicitud, Solicitud
 from modules.solicitudes.domain.transiciones import TRANSICIONES_VALIDAS
-
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
+from shared.domain.roles import es_administrador as es_rol_administrador
 
 
 def es_administrador(actor_rol: str) -> bool:
-    return actor_rol == _ROL_ADMINISTRADOR_GENERAL
+    return es_rol_administrador(actor_rol)
 
 
 def es_solicitante(solicitud: Solicitud, actor_id: str) -> bool:

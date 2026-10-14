@@ -43,10 +43,11 @@ def test_usuario_es_inmutable():
         usuario.nombre = "Otro"
 
 
-def test_rol_usuario_tiene_los_seis_roles_esperados():
+def test_rol_usuario_tiene_los_siete_roles_esperados():
     valores = {rol.value for rol in RolUsuario}
 
     assert valores == {
+        "super_administrador",
         "administrador_general",
         "tecnologia",
         "mantenimiento",

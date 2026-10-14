@@ -13,8 +13,7 @@ from modules.solicitudes.domain.errors import (
 from shared.application.notifications.enlaces import enlace
 from shared.application.notifications.ports import NotificadorPort
 from shared.domain.entities.audit import AuditPersona
-
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
+from shared.domain.roles import es_administrador as es_rol_administrador
 
 _TIPOS_POR_ROL = {
     TipoSolicitud.MANTENIMIENTO: "mantenimiento",
@@ -43,7 +42,7 @@ class CrearSolicitudService:
             raise ActivoNoEncontradoParaSolicitudError(dto.activo_id)
 
         es_responsable = dto.creado_por_id == activo.responsable_id
-        es_administrador = dto.creado_por_rol == _ROL_ADMINISTRADOR_GENERAL
+        es_administrador = es_rol_administrador(dto.creado_por_rol)
         if not es_responsable and not es_administrador:
             raise ActivoNoAsignadoError(dto.activo_id)
 

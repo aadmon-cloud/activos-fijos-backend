@@ -4,8 +4,12 @@ from datetime import UTC, datetime
 from modules.usuarios.application.dto.restablecer_password_dto import RestablecerPasswordDTO
 from modules.usuarios.application.ports.hasher import HasherPort
 from modules.usuarios.application.ports.usuario_repository import UsuarioRepositoryPort
-from modules.usuarios.domain.errors import PasswordDebilError, UsuarioNoEncontradoError
-from modules.usuarios.domain.reglas import LONGITUD_MINIMA_PASSWORD
+from modules.usuarios.domain.errors import (
+    GestionSuperAdministradorNoPermitidaError,
+    PasswordDebilError,
+    UsuarioNoEncontradoError,
+)
+from modules.usuarios.domain.reglas import LONGITUD_MINIMA_PASSWORD, puede_gestionar_rol
 from shared.domain.entities.audit import AuditPersona
 
 
@@ -21,6 +25,9 @@ class RestablecerPasswordService:
         usuario = await self._usuario_repository.obtener_por_id(dto.id_usuario)
         if usuario is None:
             raise UsuarioNoEncontradoError(dto.id_usuario)
+
+        if not puede_gestionar_rol(dto.actor_rol, usuario.rol):
+            raise GestionSuperAdministradorNoPermitidaError()
 
         usuario_actualizado = replace(
             usuario,

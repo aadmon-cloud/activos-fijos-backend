@@ -17,6 +17,8 @@ _FUNCIONES_DE_INDICES = [
     "crear_indices_notificaciones",
     "crear_indices_auditorias",
     "crear_indices_movimientos",
+    "crear_indices_permisos",
+    "asegurar_permisos_iniciales",
 ]
 
 

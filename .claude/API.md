@@ -478,3 +478,38 @@ iniciar, verificar, cerrar y reenviar **no** (solo `usuario_auditado_id`): el cl
 **Correo.** Usa su propio envio SMTP con el PDF adjunto; **no** queda en el historial de `notificaciones`. El estado y el motivo
 del fallo se ven en la auditoria.
 
+
+## Permisos por rol y Super administrador
+
+Las funciones que cada rol puede usar **ya no estan escritas en el codigo**: viven en la coleccion `permisos_rol` y las
+edita el **Super administrador** (rol nuevo `super_administrador`, por encima del Administrador General).
+
+**Autorizacion de rutas.** Cada ruta exige `requiere_permiso("<modulo>-<accion>")` (en
+`shared/infrastructure/api/dependencies/user_authentication.py`). El catalogo y la matriz de fabrica estan en
+`shared/domain/permisos.py`; la matriz de fabrica reproduce lo que cada rol podia hacer antes. `requiere_rol(...)` se
+conserva, pero el Super administrador pasa cualquier guardia. Una clave que no esta en el catalogo falla al arrancar.
+
+- El Super administrador **siempre** tiene todo y no se edita. Las funciones base (`home-ver`, `cuenta-ver`) no se pueden quitar a ningun rol.
+- La matriz se lee de Mongo con una cache de 5 s que se vacia al guardar: un cambio rige en el backend de inmediato.
+- Reglas que dependen de una funcion sin cortar toda la ruta usan `tiene_permiso(rol, clave)`:
+  `movimientos-baja` (pedir una baja), `movimientos-destinatario` (elegir a otra persona como destinatario) y
+  `mantenimientos-tecnico` (asignar un tecnico distinto de uno mismo).
+- Las rutas de lectura de catalogos, `GET /api/usuarios/directorio`, `/me` y la contrasena propia solo piden sesion.
+- **Un Administrador General no puede ascenderse ni gestionar a un Super administrador** (`USR-013`, 403): crear/editar/
+  desactivar/reactivar/restablecer sobre ese rol exige ser Super administrador.
+- Los avisos dirigidos a "el administrador" (movimientos) llegan al Administrador General y al Super administrador.
+
+**Sesion.** `POST /api/usuarios/login/google`, `POST /api/usuarios/login` y `GET /api/usuarios/me` devuelven ademas
+`permisos`: la lista de funciones habilitadas para su rol (el Super administrador recibe tambien `administracion-ver`).
+
+**Endpoints** (todos solo del Super administrador):
+
+| Endpoint | Uso |
+| --- | --- |
+| `GET /api/permisos/matriz` | Catalogo de funciones (`clave`, `modulo`, `etiqueta`, `descripcion`, `es_base`) y, por rol, `permisos` y `editable` |
+| `PUT /api/permisos/roles/{rol}` `{permisos: [...]}` | Deja exactamente esas funciones habilitadas (`PER-003` funcion inexistente, `PER-004` quitar una base, `PER-002` rol no editable, `PER-001` rol inexistente) |
+| `POST /api/permisos/roles/{rol}/restablecer` | Devuelve el rol a la matriz de fabrica |
+| `GET /api/permisos/historial?rol&skip&limit` | Cambios (habilitado/deshabilitado, quien y cuando), del mas reciente al mas antiguo |
+
+**Datos.** `permisos_rol` (un documento por rol editable, indice unico `uq_rol`) y `permisos_historial` (una entrada por
+funcion cambiada). Al arrancar se crea la matriz de fabrica de los roles que aun no tienen documento; nunca pisa lo editado.

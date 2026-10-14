@@ -61,13 +61,15 @@ from modules.movimientos.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
-    requiere_usuario_autenticado,
+    requiere_permiso,
+    tiene_permiso,
 )
 
 router = APIRouter(prefix="/api/movimientos", tags=["movimientos"])
 
-_requiere_administrador_general = requiere_rol("administrador_general")
+_requiere_movimientos_gestionar = requiere_permiso("movimientos-gestionar")
+_requiere_movimientos_solicitar = requiere_permiso("movimientos-solicitar")
+_requiere_movimientos_ver = requiere_permiso("movimientos-ver")
 
 
 def _a_response(movimiento: MovimientoDTO) -> dict:
@@ -87,7 +89,7 @@ def _a_response(movimiento: MovimientoDTO) -> dict:
 )
 async def solicitar_movimiento(
     body: SolicitarMovimientoRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_solicitar)],
     service: Annotated[SolicitarMovimientoService, Depends(get_solicitar_movimiento_service)],
 ):
     movimiento = await service.ejecutar(
@@ -103,6 +105,8 @@ async def solicitar_movimiento(
             solicitante_id=identidad.id_usuario,
             solicitante_nombre=identidad.nombre,
             solicitante_rol=identidad.rol,
+            puede_solicitar_baja=await tiene_permiso(identidad.rol, "movimientos-baja"),
+            puede_elegir_destinatario=await tiene_permiso(identidad.rol, "movimientos-destinatario"),
         )
     )
     return {
@@ -114,7 +118,7 @@ async def solicitar_movimiento(
 
 @router.get("", summary="Lista los movimientos existentes")
 async def listar_movimientos(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[ListarMovimientosService, Depends(get_listar_movimientos_service)],
     tipo: TipoMovimiento | None = Query(default=None),
     estado: EstadoMovimiento | None = Query(default=None),
@@ -156,7 +160,7 @@ async def listar_movimientos(
 )
 async def obtener_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[ObtenerMovimientoService, Depends(get_obtener_movimiento_service)],
 ):
     movimiento = await service.ejecutar(
@@ -178,7 +182,7 @@ async def obtener_movimiento(
 )
 async def aprobar_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[AprobarMovimientoService, Depends(get_aprobar_movimiento_service)],
     body: AccionSobreActivosRequest | None = None,
 ):
@@ -207,7 +211,7 @@ async def aprobar_movimiento(
 async def rechazar_movimiento(
     id_movimiento: str,
     body: RechazarMovimientoRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[RechazarMovimientoService, Depends(get_rechazar_movimiento_service)],
 ):
     movimiento = await service.ejecutar(
@@ -233,7 +237,7 @@ async def rechazar_movimiento(
 )
 async def confirmar_salida_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_gestionar)],
     service: Annotated[
         ConfirmarSalidaMovimientoService, Depends(get_confirmar_salida_movimiento_service)
     ],
@@ -262,7 +266,7 @@ async def confirmar_salida_movimiento(
 )
 async def solicitar_devolucion_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[
         SolicitarDevolucionMovimientoService, Depends(get_solicitar_devolucion_movimiento_service)
     ],
@@ -290,7 +294,7 @@ async def solicitar_devolucion_movimiento(
 )
 async def confirmar_devolucion_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_gestionar)],
     service: Annotated[
         ConfirmarDevolucionMovimientoService, Depends(get_confirmar_devolucion_movimiento_service)
     ],
@@ -326,7 +330,7 @@ async def confirmar_devolucion_movimiento(
 )
 async def ejecutar_baja_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_gestionar)],
     service: Annotated[EjecutarBajaMovimientoService, Depends(get_ejecutar_baja_movimiento_service)],
 ):
     movimiento = await service.ejecutar(
@@ -344,7 +348,7 @@ async def ejecutar_baja_movimiento(
 )
 async def obtener_comprobante_movimiento(
     id_movimiento: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(requiere_usuario_autenticado)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_movimientos_ver)],
     service: Annotated[
         ObtenerComprobanteMovimientoService, Depends(get_obtener_comprobante_movimiento_service)
     ],

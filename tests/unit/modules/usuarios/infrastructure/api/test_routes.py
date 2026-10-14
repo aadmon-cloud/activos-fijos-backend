@@ -355,3 +355,153 @@ def test_un_usuario_se_registra_sin_contrasena_y_no_puede_entrar_con_una_inventa
     assert respuesta.status_code == 201
     assert _login(cliente, "password123") == 401
 
+
+
+# Permisos en la sesion y proteccion del rol de Super administrador
+
+
+def _como(cliente, rol: str, id_usuario: str = "0"):
+    cliente.app.dependency_overrides[requiere_usuario_autenticado] = lambda: IdentidadUsuarioAutenticada(
+        id_usuario=id_usuario, email="x@example.com", nombre="X", rol=rol
+    )
+
+
+def test_me_devuelve_las_funciones_habilitadas_para_su_rol():
+    from shared.domain.permisos import permisos_por_defecto
+
+    cliente, _ = _crear_cliente_de_prueba()
+    cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA)  # id "1", rol empleado
+    _como(cliente, "empleado", id_usuario="1")
+
+    datos = cliente.get("/api/usuarios/me").json()["data"]
+
+    assert datos["email"] == "ana@example.com"
+    assert datos["permisos"] == sorted(permisos_por_defecto("empleado"))
+    assert "usuarios-ver" not in datos["permisos"]
+
+
+def test_el_login_tambien_devuelve_las_funciones_del_rol():
+    from shared.domain.permisos import permisos_por_defecto
+
+    cliente, _ = _crear_cliente_de_prueba()
+    cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA)
+
+    respuesta = cliente.post(
+        "/api/usuarios/login", json={"email": "ana@example.com", "password": "password123"}
+    )
+
+    assert respuesta.json()["data"]["usuario"]["permisos"] == sorted(permisos_por_defecto("empleado"))
+
+
+def test_los_listados_de_usuarios_no_llevan_permisos():
+    cliente, _ = _crear_cliente_de_prueba()
+    cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA)
+
+    assert "permisos" not in cliente.get("/api/usuarios").json()["data"][0]
+
+
+def test_el_super_administrador_recibe_todas_las_funciones_y_la_de_administracion():
+    cliente, _ = _crear_cliente_de_prueba()
+    _como(cliente, "super_administrador")
+    cliente.post("/api/usuarios", json={**_USUARIO_DE_PRUEBA, "rol": "super_administrador"})  # id "1"
+    _como(cliente, "super_administrador", id_usuario="1")
+
+    permisos = cliente.get("/api/usuarios/me").json()["data"]["permisos"]
+
+    assert "administracion-ver" in permisos
+    assert "usuarios-crear" in permisos
+
+
+def test_un_administrador_general_no_puede_crear_a_un_super_administrador():
+    cliente, _ = _crear_cliente_de_prueba()
+
+    respuesta = cliente.post("/api/usuarios", json={**_USUARIO_DE_PRUEBA, "rol": "super_administrador"})
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["code"] == "USR-013"
+
+
+def test_un_administrador_general_no_puede_ascender_a_nadie_a_super_administrador():
+    cliente, _ = _crear_cliente_de_prueba()
+    cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA)
+
+    respuesta = cliente.put("/api/usuarios/1", json={"rol": "super_administrador"})
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["code"] == "USR-013"
+
+
+def test_un_super_administrador_si_puede_crear_y_ascender():
+    cliente, _ = _crear_cliente_de_prueba()
+    _como(cliente, "super_administrador")
+
+    assert cliente.post("/api/usuarios", json={**_USUARIO_DE_PRUEBA, "rol": "super_administrador"}).status_code == 201
+    cliente.post("/api/usuarios", json={**_USUARIO_DE_PRUEBA, "email": "otra@example.com"})  # id "2"
+
+    respuesta = cliente.put("/api/usuarios/2", json={"rol": "super_administrador"})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["data"]["rol"] == "super_administrador"
+
+
+def test_un_administrador_general_no_puede_gestionar_a_un_super_administrador():
+    cliente, _ = _crear_cliente_de_prueba()
+    _como(cliente, "super_administrador")
+    cliente.post("/api/usuarios", json={**_USUARIO_DE_PRUEBA, "rol": "super_administrador"})  # id "1"
+    cliente.delete("/api/usuarios/1")
+    _como(cliente, "administrador_general")
+
+    assert cliente.delete("/api/usuarios/1").status_code == 403
+    assert cliente.post("/api/usuarios/1/reactivar").status_code == 403
+    assert cliente.put("/api/usuarios/1/password", json={"password_nueva": "otra-clave-123"}).status_code == 403
+    assert cliente.put("/api/usuarios/1", json={"nombre": "Otro"}).status_code == 403
+
+
+# El efecto de la matriz de permisos en las rutas
+
+
+def _con_matriz(monkeypatch, permisos_por_rol: dict[str, list[str]]):
+    from shared.infrastructure.security.consulta_permisos_rol_mongo import (
+        ConsultaPermisosRolMongo,
+        consulta_permisos_rol,
+    )
+
+    async def _leer(self, rol):
+        return {"permisos": permisos_por_rol[rol]} if rol in permisos_por_rol else None
+
+    monkeypatch.setattr(ConsultaPermisosRolMongo, "_leer_documento", _leer)
+    consulta_permisos_rol.invalidar()
+
+
+def test_quitarle_una_funcion_a_un_rol_bloquea_esa_ruta_de_inmediato(monkeypatch):
+    from shared.domain.permisos import permisos_por_defecto
+
+    cliente, _ = _crear_cliente_de_prueba()  # Administrador General
+    assert cliente.get("/api/usuarios").status_code == 200
+
+    _con_matriz(monkeypatch, {"administrador_general": sorted(permisos_por_defecto("administrador_general") - {"usuarios-ver"})})
+
+    assert cliente.get("/api/usuarios").status_code == 403
+    assert cliente.get("/api/usuarios").json()["code"] == "AUTH-003"
+    # Las demas funciones del rol siguen funcionando
+    assert cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA).status_code == 201
+
+
+def test_darle_una_funcion_a_otro_rol_habilita_esa_ruta(monkeypatch):
+    cliente, _ = _crear_cliente_de_prueba()
+    _como(cliente, "empleado")
+    assert cliente.get("/api/usuarios").status_code == 403
+
+    _con_matriz(monkeypatch, {"empleado": ["home-ver", "cuenta-ver", "usuarios-ver"]})
+
+    assert cliente.get("/api/usuarios").status_code == 200
+    # Solo esa: crear sigue prohibido
+    assert cliente.post("/api/usuarios", json=_USUARIO_DE_PRUEBA).status_code == 403
+
+
+def test_el_super_administrador_conserva_todo_aunque_la_matriz_quede_vacia(monkeypatch):
+    cliente, _ = _crear_cliente_de_prueba()
+    _como(cliente, "super_administrador")
+    _con_matriz(monkeypatch, {rol: ["home-ver", "cuenta-ver"] for rol in ("administrador_general", "empleado")})
+
+    assert cliente.get("/api/usuarios").status_code == 200

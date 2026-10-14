@@ -327,7 +327,8 @@ def test_crear_con_activo_inexistente_retorna_404_con_mnt_002():
 
 
 def test_crear_con_tecnico_sin_rol_de_mantenimiento_retorna_422_con_mnt_003():
-    cliente, _ = _crear_cliente_de_prueba()
+    cliente, contenedor = _crear_cliente_de_prueba()
+    contenedor.valor = _identidad("admin-1", "administrador_general")
 
     respuesta = cliente.post(
         "/api/mantenimientos",
@@ -616,7 +617,8 @@ def test_la_carga_masiva_sin_lista_o_con_demasiados_codigos_se_rechaza():
 
 
 def test_la_carga_masiva_con_tecnico_sin_rol_retorna_422_con_mnt_003():
-    cliente, _ = _crear_cliente_de_prueba()
+    cliente, contenedor = _crear_cliente_de_prueba()
+    contenedor.valor = _identidad("admin-1", "administrador_general")
 
     respuesta = cliente.post(
         "/api/mantenimientos/masivo", json={**_MASIVO, "tecnico_responsable_id": "sin-rol"}
@@ -631,3 +633,63 @@ def test_la_carga_masiva_requiere_el_rol_de_mantenimiento_o_administrador():
     contenedor.valor = _identidad("empleado-1", "empleado")
 
     assert cliente.post("/api/mantenimientos/masivo", json=_MASIVO).status_code == 403
+
+
+# Elegir el tecnico es una funcion de la matriz de permisos (mantenimientos-tecnico)
+
+
+def test_quien_no_puede_elegir_el_tecnico_solo_se_registra_a_si_mismo():
+    cliente, _ = _crear_cliente_de_prueba()  # el usuario es el tecnico y tiene rol de mantenimiento
+
+    assert cliente.post("/api/mantenimientos", json=_MANTENIMIENTO_DE_PRUEBA).status_code == 201
+
+
+def test_quien_no_puede_elegir_el_tecnico_no_puede_asignar_a_otra_persona():
+    cliente, _ = _crear_cliente_de_prueba()
+
+    respuesta = cliente.post(
+        "/api/mantenimientos", json={**_MANTENIMIENTO_DE_PRUEBA, "tecnico_responsable_id": "otro-tecnico"}
+    )
+
+    assert respuesta.status_code == 403
+    assert respuesta.json()["code"] == "AUTH-003"
+
+
+def test_la_carga_masiva_tampoco_deja_asignar_a_otra_persona_sin_la_funcion():
+    cliente, _ = _crear_cliente_de_prueba()
+
+    respuesta = cliente.post(
+        "/api/mantenimientos/masivo", json={**_MASIVO, "tecnico_responsable_id": "otro-tecnico"}
+    )
+
+    assert respuesta.status_code == 403
+
+
+def test_el_administrador_si_puede_asignar_a_otro_tecnico():
+    cliente, contenedor = _crear_cliente_de_prueba()
+    contenedor.valor = _identidad("admin-1", "administrador_general")
+
+    respuesta = cliente.post("/api/mantenimientos", json=_MANTENIMIENTO_DE_PRUEBA)  # tecnico = _TECNICO_ID
+
+    assert respuesta.status_code == 201
+
+
+def test_si_a_un_rol_se_le_da_la_funcion_de_elegir_tecnico_puede_asignar_a_otro(monkeypatch):
+    from shared.infrastructure.security.consulta_permisos_rol_mongo import (
+        ConsultaPermisosRolMongo,
+        consulta_permisos_rol,
+    )
+
+    async def _con_tecnico(self, rol):
+        return {"permisos": ["home-ver", "cuenta-ver", "mantenimientos-ver", "mantenimientos-gestionar", "mantenimientos-tecnico"]}
+
+    monkeypatch.setattr(ConsultaPermisosRolMongo, "_leer_documento", _con_tecnico)
+    consulta_permisos_rol.invalidar()
+    cliente, _ = _crear_cliente_de_prueba()  # rol mantenimiento, ahora con la funcion
+
+    respuesta = cliente.post(
+        "/api/mantenimientos", json={**_MANTENIMIENTO_DE_PRUEBA, "tecnico_responsable_id": "sin-rol"}
+    )
+
+    assert respuesta.status_code == 422  # llega al servicio, que rechaza a quien no es tecnico (MNT-003)
+    assert respuesta.json()["code"] == "MNT-003"

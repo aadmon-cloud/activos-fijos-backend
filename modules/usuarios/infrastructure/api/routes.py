@@ -48,6 +48,7 @@ from modules.usuarios.infrastructure.api.schemas import (
     RestablecerPasswordRequest,
     SesionResponse,
     UsuarioResponse,
+    UsuarioSesionResponse,
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.session_cookie import (
@@ -55,13 +56,23 @@ from shared.infrastructure.api.session_cookie import (
     establecer_cookie_sesion,
 )
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
+    requiere_permiso,
     requiere_usuario_autenticado,
 )
+from shared.infrastructure.security.consulta_permisos_rol_mongo import consulta_permisos_rol
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
-_requiere_administrador_general = requiere_rol(RolUsuario.ADMINISTRADOR_GENERAL.value)
+_requiere_usuarios_crear = requiere_permiso("usuarios-crear")
+_requiere_usuarios_editar = requiere_permiso("usuarios-editar")
+_requiere_usuarios_estado = requiere_permiso("usuarios-estado")
+_requiere_usuarios_ver = requiere_permiso("usuarios-ver")
+
+
+async def _usuario_de_sesion(usuario) -> UsuarioSesionResponse:
+    """El usuario con las funciones que su rol tiene habilitadas hoy en la matriz de permisos."""
+    permisos = sorted(await consulta_permisos_rol.obtener(usuario.rol))
+    return UsuarioSesionResponse(**usuario.__dict__, permisos=permisos)
 
 
 # Rutas de autenticacion
@@ -84,7 +95,7 @@ async def login_con_google(
     establecer_cookie_sesion(response, token.access_token)
     return {
         "status": "success",
-        "data": SesionResponse(usuario=UsuarioResponse(**token.usuario.__dict__)).model_dump(),
+        "data": SesionResponse(usuario=await _usuario_de_sesion(token.usuario)).model_dump(),
     }
 
 
@@ -106,7 +117,7 @@ async def login(
     establecer_cookie_sesion(response, token.access_token)
     return {
         "status": "success",
-        "data": SesionResponse(usuario=UsuarioResponse(**token.usuario.__dict__)).model_dump(),
+        "data": SesionResponse(usuario=await _usuario_de_sesion(token.usuario)).model_dump(),
     }
 
 
@@ -128,7 +139,7 @@ async def obtener_mi_perfil(
     service: Annotated[ObtenerUsuarioService, Depends(get_obtener_usuario_service)],
 ):
     usuario = await service.ejecutar(identidad.id_usuario)
-    return {"status": "success", "data": UsuarioResponse(**usuario.__dict__).model_dump()}
+    return {"status": "success", "data": (await _usuario_de_sesion(usuario)).model_dump()}
 
 
 @router.put(
@@ -169,7 +180,7 @@ async def cambiar_mi_password(
 async def registrar_usuario(
     body: RegistrarUsuarioRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_crear)
     ],
     service: Annotated[RegistrarUsuarioService, Depends(get_registrar_usuario_service)],
 ):
@@ -185,6 +196,7 @@ async def registrar_usuario(
             identificacion=body.identificacion,
             creado_por_id=identidad.id_usuario,
             creado_por_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
         )
     )
     return {
@@ -200,7 +212,7 @@ async def registrar_usuario(
 )
 async def listar_usuarios(
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_ver)
     ],
     service: Annotated[ListarUsuariosService, Depends(get_listar_usuarios_service)],
     busqueda: str | None = Query(default=None),
@@ -245,7 +257,7 @@ async def listar_directorio_usuarios(
 async def obtener_usuario(
     id_usuario: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_ver)
     ],
     service: Annotated[ObtenerUsuarioService, Depends(get_obtener_usuario_service)],
 ):
@@ -262,7 +274,7 @@ async def actualizar_usuario(
     id_usuario: str,
     body: ActualizarUsuarioRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_editar)
     ],
     service: Annotated[ActualizarUsuarioService, Depends(get_actualizar_usuario_service)],
 ):
@@ -276,6 +288,7 @@ async def actualizar_usuario(
             telefono=body.telefono,
             actualizado_por_id=identidad.id_usuario,
             actualizado_por_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
         )
     )
     return {"status": "success", "data": UsuarioResponse(**usuario.__dict__).model_dump()}
@@ -289,7 +302,7 @@ async def actualizar_usuario(
 async def desactivar_usuario(
     id_usuario: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_estado)
     ],
     service: Annotated[DesactivarUsuarioService, Depends(get_desactivar_usuario_service)],
 ):
@@ -298,6 +311,7 @@ async def desactivar_usuario(
             id_usuario=id_usuario,
             actualizado_por_id=identidad.id_usuario,
             actualizado_por_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
         )
     )
     return {"status": "success", "message": "Usuario desactivado exitosamente."}
@@ -311,7 +325,7 @@ async def desactivar_usuario(
 async def reactivar_usuario(
     id_usuario: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_estado)
     ],
     service: Annotated[ReactivarUsuarioService, Depends(get_reactivar_usuario_service)],
 ):
@@ -320,6 +334,7 @@ async def reactivar_usuario(
             id_usuario=id_usuario,
             actualizado_por_id=identidad.id_usuario,
             actualizado_por_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
         )
     )
     return {"status": "success", "message": "Usuario reactivado exitosamente."}
@@ -337,7 +352,7 @@ async def restablecer_password(
     id_usuario: str,
     body: RestablecerPasswordRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_usuarios_editar)
     ],
     service: Annotated[RestablecerPasswordService, Depends(get_restablecer_password_service)],
 ):
@@ -347,6 +362,7 @@ async def restablecer_password(
             password_nueva=body.password_nueva,
             actualizado_por_id=identidad.id_usuario,
             actualizado_por_nombre=identidad.nombre,
+            actor_rol=identidad.rol,
         )
     )
     return {"status": "success", "message": "Contrasena restablecida exitosamente."}

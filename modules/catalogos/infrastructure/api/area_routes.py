@@ -23,15 +23,16 @@ from modules.catalogos.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.user_authentication import (
-    requiere_rol,
+    requiere_permiso,
     requiere_usuario_autenticado,
 )
 
-_ROL_ADMINISTRADOR_GENERAL = "administrador_general"
 
 router = APIRouter(prefix="/api/areas", tags=["areas"])
 
-_requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
+_requiere_catalogos_crear = requiere_permiso("catalogos-crear")
+_requiere_catalogos_editar = requiere_permiso("catalogos-editar")
+_requiere_catalogos_eliminar = requiere_permiso("catalogos-eliminar")
 
 
 @router.post(
@@ -43,7 +44,7 @@ _requiere_administrador_general = requiere_rol(_ROL_ADMINISTRADOR_GENERAL)
 async def crear_area(
     body: CrearAreaRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_crear)
     ],
     service: Annotated[CrearAreaService, Depends(get_crear_area_service)],
 ):
@@ -103,7 +104,7 @@ async def actualizar_area(
     id_area: str,
     body: ActualizarAreaRequest,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_editar)
     ],
     service: Annotated[ActualizarAreaService, Depends(get_actualizar_area_service)],
 ):
@@ -127,7 +128,7 @@ async def actualizar_area(
 async def eliminar_area(
     id_area: str,
     identidad: Annotated[
-        IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)
+        IdentidadUsuarioAutenticada, Depends(_requiere_catalogos_eliminar)
     ],
     service: Annotated[EliminarAreaService, Depends(get_eliminar_area_service)],
 ):

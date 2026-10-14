@@ -18,8 +18,10 @@ from modules.movimientos.domain.entities import (
 )
 from shared.application.notifications.enlaces import enlace
 from shared.application.notifications.ports import NotificadorPort
+from shared.domain.roles import ROL_ADMINISTRADOR_GENERAL, ROL_SUPER_ADMINISTRADOR
 
-_ROL_ADMINISTRADOR = "rol:administrador_general"
+# Los avisos para "el administrador" le llegan al Administrador General y al Super administrador.
+_ROLES_ADMINISTRADORES = (f"rol:{ROL_ADMINISTRADOR_GENERAL}", f"rol:{ROL_SUPER_ADMINISTRADOR}")
 
 _ETIQUETA_TIPO = {
     TipoMovimiento.PRESTAMO: "prestamo",
@@ -124,7 +126,7 @@ def construir_aviso(
             )
 
         return Aviso(
-            _sin_repetidos([_ROL_ADMINISTRADOR]),
+            _sin_repetidos([*_ROLES_ADMINISTRADORES]),
             f"Nueva solicitud de {tipo}: {titulo}",
             _cuerpo(movimiento, texto),
         )
@@ -133,7 +135,7 @@ def construir_aviso(
         espera_admin = movimiento.estado == EstadoMovimiento.APROBADO_RESPONSABLE
         destinatarios = _usuario(movimiento.creado_por.id_persona)
         if espera_admin:
-            destinatarios = [_ROL_ADMINISTRADOR, *destinatarios]
+            destinatarios = [*_ROLES_ADMINISTRADORES, *destinatarios]
 
         return Aviso(
             _sin_repetidos(destinatarios),
@@ -186,7 +188,7 @@ def construir_aviso(
         pedidos = _con_estado(movimiento, EstadoItemMovimiento.DEVOLUCION_SOLICITADA)
 
         return Aviso(
-            _sin_repetidos([_ROL_ADMINISTRADOR, *_participantes(movimiento)]),
+            _sin_repetidos([*_ROLES_ADMINISTRADORES, *_participantes(movimiento)]),
             f"Devolucion solicitada: {_titulo(pedidos, activos)}",
             _cuerpo(
                 movimiento,
@@ -214,7 +216,7 @@ def construir_aviso(
 
     if evento == EventoMovimiento.BAJA_EJECUTADA:
         return Aviso(
-            _sin_repetidos([_ROL_ADMINISTRADOR, *_participantes(movimiento)]),
+            _sin_repetidos([*_ROLES_ADMINISTRADORES, *_participantes(movimiento)]),
             f"Baja de activo ejecutada: {titulo}",
             _cuerpo(movimiento, f"{lista} fue dado de baja de forma definitiva.", movimiento.descripcion),
         )

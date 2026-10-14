@@ -10,6 +10,7 @@ from modules.movimientos.domain.entities import TipoMovimiento
 from shared.application.notifications.enlaces import MARCADOR_URL_APP
 
 _ADMIN = "rol:administrador_general"
+_SUPER = "rol:super_administrador"
 
 
 def _activos(fabrica):
@@ -59,7 +60,7 @@ def test_solicitado_sin_responsables_pendientes_avisa_a_administracion(fabrica):
 
     aviso = construir_aviso(EventoMovimiento.SOLICITADO, movimiento, _activos(fabrica))
 
-    assert aviso.destinatarios == [_ADMIN]
+    assert aviso.destinatarios == [_ADMIN, _SUPER]
 
 
 def test_la_baja_solicitada_avisa_a_administracion(fabrica):
@@ -67,7 +68,7 @@ def test_la_baja_solicitada_avisa_a_administracion(fabrica):
 
     aviso = construir_aviso(EventoMovimiento.SOLICITADO, movimiento, _activos(fabrica))
 
-    assert aviso.destinatarios == [_ADMIN]
+    assert aviso.destinatarios == [_ADMIN, _SUPER]
     assert "baja" in aviso.asunto.lower()
 
 
@@ -78,7 +79,7 @@ def test_aprobado_por_responsables_avisa_a_administracion_solo_cuando_ya_decidie
     completo = construir_aviso(EventoMovimiento.APROBADO_RESPONSABLE, espera_admin, _activos(fabrica))
     parcial = construir_aviso(EventoMovimiento.APROBADO_RESPONSABLE, faltan_otros, _activos(fabrica))
 
-    assert completo.destinatarios == [_ADMIN, "usuario:creador"]
+    assert completo.destinatarios == [_ADMIN, _SUPER, "usuario:creador"]
     assert parcial.destinatarios == ["usuario:creador"]
 
 
@@ -110,7 +111,7 @@ def test_devolucion_solicitada_avisa_a_administracion(fabrica):
 
     aviso = construir_aviso(EventoMovimiento.DEVOLUCION_SOLICITADA, movimiento, _activos(fabrica))
 
-    assert aviso.destinatarios[0] == _ADMIN
+    assert aviso.destinatarios[:2] == [_ADMIN, _SUPER]
     assert "Proyector" in aviso.cuerpo
 
 
@@ -136,7 +137,7 @@ def test_baja_ejecutada_avisa_a_administracion_y_participantes(fabrica):
 
     aviso = construir_aviso(EventoMovimiento.BAJA_EJECUTADA, movimiento, _activos(fabrica))
 
-    assert aviso.destinatarios[0] == _ADMIN
+    assert aviso.destinatarios[:2] == [_ADMIN, _SUPER]
     assert "usuario:original" in aviso.destinatarios
 
 

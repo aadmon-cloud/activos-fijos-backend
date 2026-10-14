@@ -26,11 +26,12 @@ from modules.notificaciones.infrastructure.api.schemas import (
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
 from shared.infrastructure.api.dependencies.planificador import requiere_admin_o_planificador
-from shared.infrastructure.api.dependencies.user_authentication import requiere_rol
+from shared.infrastructure.api.dependencies.user_authentication import requiere_permiso
 
 router = APIRouter(prefix="/api/notificaciones", tags=["notificaciones"])
 
-_requiere_administrador_general = requiere_rol("administrador_general")
+_requiere_notificaciones_gestionar = requiere_permiso("notificaciones-gestionar")
+_requiere_notificaciones_ver = requiere_permiso("notificaciones-ver")
 
 
 def _a_response(notificacion) -> NotificacionResponse:
@@ -50,7 +51,7 @@ def _a_response(notificacion) -> NotificacionResponse:
 
 @router.get("", summary="Historial de los correos enviados por el sistema (solo administrador general)")
 async def listar_notificaciones(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_notificaciones_ver)],
     service: Annotated[ListarNotificacionesService, Depends(get_listar_notificaciones_service)],
     estado: EstadoNotificacion | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
@@ -66,7 +67,7 @@ async def listar_notificaciones(
 
 @router.get("/estado-correo", summary="Si el envio de correo esta configurado (solo administrador general)")
 async def estado_correo(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_notificaciones_ver)],
     configuracion: Annotated[ConfiguracionCorreoPort, Depends(get_configuracion_correo)],
 ):
     respuesta = EstadoCorreoResponse(
@@ -103,7 +104,7 @@ async def procesar_recordatorios(
 )
 async def reenviar_notificacion(
     id_notificacion: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_notificaciones_gestionar)],
     service: Annotated[ReenviarNotificacionService, Depends(get_reenviar_notificacion_service)],
 ):
     notificacion = await service.ejecutar(id_notificacion)

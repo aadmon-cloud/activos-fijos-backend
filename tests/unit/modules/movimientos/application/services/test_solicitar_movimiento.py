@@ -272,7 +272,7 @@ async def test_solicitar_baja_con_rol_admin_espera_a_administracion_sin_destino(
     assert movimiento.usuario_destino_id is None
     assert movimiento.items[0].estado == EstadoItemMovimiento.PENDIENTE_ADMIN
     assert movimiento.estado == EstadoMovimiento.SOLICITADO
-    assert notificador.notificar.await_args.kwargs["destinatarios"] == ["rol:administrador_general"]
+    assert notificador.notificar.await_args.kwargs["destinatarios"] == ["rol:administrador_general", "rol:super_administrador"]
 
 
 async def test_la_baja_es_de_un_solo_activo(fabrica):
@@ -338,3 +338,53 @@ async def test_un_destinatario_inexistente_falla(fabrica):
 
     with pytest.raises(UsuarioDestinoNoEncontradoError):
         await service.ejecutar(_dto())
+
+
+# Las funciones de la matriz de permisos mandan sobre el rol cuando se informan explicitamente
+
+
+async def test_un_rol_con_la_funcion_de_bajas_puede_pedir_una_baja_aunque_no_sea_administrador(fabrica):
+    service, repo, _ = _servicio(fabrica)
+
+    await service.ejecutar(_dto(tipo=TipoMovimiento.BAJA, sentido=None, puede_solicitar_baja=True))
+
+    repo.guardar.assert_awaited_once()
+
+
+async def test_un_administrador_sin_la_funcion_de_bajas_no_puede_pedirla(fabrica):
+    service, repo, _ = _servicio(fabrica)
+
+    with pytest.raises(SolicitudDeBajaRequiereAdminError):
+        await service.ejecutar(
+            _dto(
+                tipo=TipoMovimiento.BAJA,
+                sentido=None,
+                solicitante_rol="administrador_general",
+                puede_solicitar_baja=False,
+            )
+        )
+
+    repo.guardar.assert_not_called()
+
+
+async def test_un_rol_con_la_funcion_de_elegir_destinatario_puede_montar_la_solicitud_para_otro(fabrica):
+    service, repo, _ = _servicio(fabrica)
+
+    await service.ejecutar(_dto(usuario_destino_id="u9", puede_elegir_destinatario=True))
+
+    assert repo.guardar.call_args.args[0].usuario_destino_id == "u9"
+
+
+async def test_un_administrador_sin_la_funcion_de_elegir_destinatario_no_puede_elegir_otro(fabrica):
+    service, repo, _ = _servicio(fabrica)
+
+    with pytest.raises(DestinatarioNoPermitidoError):
+        await service.ejecutar(
+            _dto(
+                solicitante_rol="administrador_general",
+                usuario_destino_id="u9",
+                puede_elegir_destinatario=False,
+            )
+        )
+
+    repo.guardar.assert_not_called()

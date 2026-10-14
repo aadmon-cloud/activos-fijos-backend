@@ -10,10 +10,11 @@ from modules.usuarios.domain.entities import Usuario
 from modules.usuarios.domain.errors import (
     AreaInvalidaError,
     EmailYaRegistradoError,
+    GestionSuperAdministradorNoPermitidaError,
     IdentificacionYaRegistradaError,
     PasswordDebilError,
 )
-from modules.usuarios.domain.reglas import LONGITUD_MINIMA_PASSWORD
+from modules.usuarios.domain.reglas import LONGITUD_MINIMA_PASSWORD, puede_gestionar_rol
 from shared.domain.entities.audit import AuditPersona
 
 
@@ -29,6 +30,9 @@ class RegistrarUsuarioService:
         self._verificador_area = verificador_area
 
     async def ejecutar(self, dto: RegistrarUsuarioDTO) -> UsuarioDTO:
+        if not puede_gestionar_rol(dto.actor_rol, dto.rol):
+            raise GestionSuperAdministradorNoPermitidaError()
+
         email = dto.email.strip().lower()
 
         if dto.password is not None and len(dto.password) < LONGITUD_MINIMA_PASSWORD:

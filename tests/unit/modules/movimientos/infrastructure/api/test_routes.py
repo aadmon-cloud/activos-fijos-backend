@@ -731,7 +731,11 @@ def test_cada_etapa_avisa_a_quien_corresponde():
     cliente.como(ANA).post(f"/api/movimientos/{id_mov}/aprobar")
     cliente.como(LUIS).post(f"/api/movimientos/{id_mov}/aprobar")
     # 3) cuando ya aprobaron todos: a administracion y a quien lo pidio
-    assert cliente.notificador.enviados[-1][0] == ["rol:administrador_general", f"usuario:{SOLICITANTE}"]
+    assert cliente.notificador.enviados[-1][0] == [
+        "rol:administrador_general",
+        "rol:super_administrador",
+        f"usuario:{SOLICITANTE}",
+    ]
 
     cliente.como(ADMIN).post(f"/api/movimientos/{id_mov}/confirmar-salida")
     assert "Salida confirmada" in cliente.notificador.enviados[-1][1]

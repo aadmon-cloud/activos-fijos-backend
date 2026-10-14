@@ -13,3 +13,6 @@ class ActualizarUsuarioDTO:
     rol: RolUsuario | None = None
     area_id: str | None = None
     telefono: str | None = None
+
+    # Rol de quien ejecuta la accion; vacio = sin privilegios.
+    actor_rol: str = ""

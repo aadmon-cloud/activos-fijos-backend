@@ -54,5 +54,10 @@ class UsuarioResponse(BaseModel):
     activo: bool
 
 
+class UsuarioSesionResponse(UsuarioResponse):
+    # Funciones habilitadas para su rol en la matriz de permisos: el frontend las usa para mostrar u ocultar opciones.
+    permisos: list[str]
+
+
 class SesionResponse(BaseModel):
-    usuario: UsuarioResponse
+    usuario: UsuarioSesionResponse

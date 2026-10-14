@@ -17,3 +17,10 @@ class ConsultaEstadoUsuarioPort(ABC):
 
     @abstractmethod
     async def obtener(self, id_usuario: str) -> EstadoUsuario | None: ...
+
+
+class ConsultaPermisosRolPort(ABC):
+    """Consulta las funciones que tiene habilitadas un rol en la matriz de permisos."""
+
+    @abstractmethod
+    async def obtener(self, rol: str) -> frozenset[str]: ...

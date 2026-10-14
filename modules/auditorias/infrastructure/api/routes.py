@@ -39,11 +39,12 @@ from modules.auditorias.infrastructure.api.schemas import (
     VerificarItemAuditoriaRequest,
 )
 from shared.application.user_auth.dto import IdentidadUsuarioAutenticada
-from shared.infrastructure.api.dependencies.user_authentication import requiere_rol
+from shared.infrastructure.api.dependencies.user_authentication import requiere_permiso
 
 router = APIRouter(prefix="/api/auditorias", tags=["auditorias"])
 
-_requiere_administrador_general = requiere_rol("administrador_general")
+_requiere_auditorias_gestionar = requiere_permiso("auditorias-gestionar")
+_requiere_auditorias_ver = requiere_permiso("auditorias-ver")
 
 
 def _a_response(auditoria) -> AuditoriaResponse:
@@ -98,7 +99,7 @@ def _a_response_con_nombres(auditoria) -> AuditoriaConNombresResponse:
 )
 async def iniciar_auditoria(
     body: IniciarAuditoriaRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_gestionar)],
     service: Annotated[IniciarAuditoriaService, Depends(get_iniciar_auditoria_service)],
 ):
     auditoria = await service.ejecutar(
@@ -117,7 +118,7 @@ async def iniciar_auditoria(
 
 @router.get("", summary="Lista las auditorias existentes")
 async def listar_auditorias(
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_ver)],
     service: Annotated[ListarAuditoriasService, Depends(get_listar_auditorias_service)],
     usuario_auditado_id: str | None = Query(default=None),
     estado: EstadoAuditoria | None = Query(default=None),
@@ -148,7 +149,7 @@ async def listar_auditorias(
 )
 async def obtener_auditoria(
     id_auditoria: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_ver)],
     service: Annotated[ObtenerAuditoriaService, Depends(get_obtener_auditoria_service)],
 ):
     auditoria = await service.ejecutar(id_auditoria)
@@ -168,7 +169,7 @@ async def verificar_item_auditoria(
     id_auditoria: str,
     activo_id: str,
     body: VerificarItemAuditoriaRequest,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_gestionar)],
     service: Annotated[
         VerificarItemAuditoriaService, Depends(get_verificar_item_auditoria_service)
     ],
@@ -194,7 +195,7 @@ async def verificar_item_auditoria(
 )
 async def cerrar_auditoria(
     id_auditoria: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_gestionar)],
     service: Annotated[CerrarAuditoriaService, Depends(get_cerrar_auditoria_service)],
 ):
     auditoria = await service.ejecutar(
@@ -215,7 +216,7 @@ async def cerrar_auditoria(
 )
 async def reenviar_notificacion_auditoria(
     id_auditoria: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_gestionar)],
     service: Annotated[
         ReenviarNotificacionAuditoriaService,
         Depends(get_reenviar_notificacion_auditoria_service),
@@ -232,7 +233,7 @@ async def reenviar_notificacion_auditoria(
 )
 async def obtener_pdf_auditoria(
     id_auditoria: str,
-    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_administrador_general)],
+    identidad: Annotated[IdentidadUsuarioAutenticada, Depends(_requiere_auditorias_ver)],
     service: Annotated[ObtenerPdfAuditoriaService, Depends(get_obtener_pdf_auditoria_service)],
 ):
     archivo = await service.ejecutar(id_auditoria)

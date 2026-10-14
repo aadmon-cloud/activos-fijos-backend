@@ -55,12 +55,16 @@ class SolicitarMovimientoService:
 
     async def ejecutar(self, dto: SolicitarMovimientoDTO) -> MovimientoDTO:
         es_admin = es_administrador(dto.solicitante_rol)
-        if dto.tipo == TipoMovimiento.BAJA and not es_admin:
+        puede_baja = es_admin if dto.puede_solicitar_baja is None else dto.puede_solicitar_baja
+        puede_elegir_destinatario = (
+            es_admin if dto.puede_elegir_destinatario is None else dto.puede_elegir_destinatario
+        )
+        if dto.tipo == TipoMovimiento.BAJA and not puede_baja:
             raise SolicitudDeBajaRequiereAdminError()
 
         activo_ids = list(dict.fromkeys(dto.activo_ids))
         self._validar(dto, activo_ids)
-        destino_id = self._resolver_destino(dto, es_admin)
+        destino_id = self._resolver_destino(dto, puede_elegir_destinatario)
 
         resumenes = await self._activo_movimiento.obtener_resumenes(activo_ids)
         for activo_id in activo_ids:
@@ -158,9 +162,9 @@ class SolicitarMovimientoService:
             raise FechasMovimientoInvalidasError()
 
     @staticmethod
-    def _resolver_destino(dto: SolicitarMovimientoDTO, es_admin: bool) -> str | None:
-        """Quien recibe los activos. Al prestar se elige; en los demas casos es quien lo pide, salvo que un
-        administrador lo monte para otra persona."""
+    def _resolver_destino(dto: SolicitarMovimientoDTO, puede_elegir_destinatario: bool) -> str | None:
+        """Quien recibe los activos. Al prestar se elige; en los demas casos es quien lo pide, salvo que quien tiene
+        la funcion de elegir destinatario lo monte para otra persona."""
         if dto.tipo not in _TIPOS_CON_DESTINO:
             return None
 
@@ -172,7 +176,7 @@ class SolicitarMovimientoService:
             return dto.usuario_destino_id
 
         destino = dto.usuario_destino_id or dto.solicitante_id
-        if destino != dto.solicitante_id and not es_admin:
+        if destino != dto.solicitante_id and not puede_elegir_destinatario:
             raise DestinatarioNoPermitidoError()
 
         return destino

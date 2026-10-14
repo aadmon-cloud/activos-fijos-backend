@@ -5,6 +5,7 @@ from shared.domain.entities.audit import AuditPersona
 
 
 class RolUsuario(str, Enum):
+    SUPER_ADMINISTRADOR = "super_administrador"
     ADMINISTRADOR_GENERAL = "administrador_general"
     TECNOLOGIA = "tecnologia"
     MANTENIMIENTO = "mantenimiento"
